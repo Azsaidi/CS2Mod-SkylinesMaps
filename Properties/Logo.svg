@@ -1,0 +1,164 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Skylines Maps">
+  <title>Skylines Maps</title>
+
+  <defs>
+    <clipPath id="tile">
+      <rect x="0" y="0" width="512" height="512"/>
+    </clipPath>
+    <clipPath id="gridPlane">
+      <rect x="0" y="0" width="512" height="512"/>
+    </clipPath>
+    <clipPath id="mapDiamondScreen">
+      <polygon points="256,176 496,296 256,416 16,296"/>
+    </clipPath>
+
+    <linearGradient id="pinFace" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34373C"/>
+      <stop offset="0.42" stop-color="#17181A"/>
+      <stop offset="1" stop-color="#050506"/>
+    </linearGradient>
+    <filter id="pinShadow" x="-30%" y="-25%" width="175%" height="185%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="12" dy="18" stdDeviation="12" flood-color="#000000" flood-opacity="0.32"/>
+    </filter>
+    <filter id="mapContactShadow" x="-30%" y="-100%" width="170%" height="300%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+
+    <!--
+      Each road is split at junction boundaries. Adjacent segments share the exact same endpoint
+      colour, so gradients flow into the junctions without abrupt overdraw or colour jumps.
+    -->
+    <linearGradient id="hTopLeft" gradientUnits="userSpaceOnUse" x1="-20" y1="0" x2="156" y2="0">
+      <stop offset="0" stop-color="#4E9B63"/>
+      <stop offset="0.6" stop-color="#7FA650"/>
+      <stop offset="1" stop-color="#739F55"/>
+    </linearGradient>
+    <linearGradient id="hTopCenter" gradientUnits="userSpaceOnUse" x1="176" y1="0" x2="336" y2="0">
+      <stop offset="0" stop-color="#739F55"/>
+      <stop offset="0.55" stop-color="#9B984A"/>
+      <stop offset="1" stop-color="#B77142"/>
+    </linearGradient>
+    <linearGradient id="hTopRight" gradientUnits="userSpaceOnUse" x1="356" y1="0" x2="532" y2="0">
+      <stop offset="0" stop-color="#B77142"/>
+      <stop offset="0.55" stop-color="#DFA53A"/>
+      <stop offset="1" stop-color="#C9853A"/>
+    </linearGradient>
+
+    <linearGradient id="hMidLeft" gradientUnits="userSpaceOnUse" x1="-20" y1="0" x2="156" y2="0">
+      <stop offset="0" stop-color="#5A9E5C"/>
+      <stop offset="0.62" stop-color="#DFA53A"/>
+      <stop offset="1" stop-color="#A99D48"/>
+    </linearGradient>
+    <linearGradient id="hMidCenter" gradientUnits="userSpaceOnUse" x1="176" y1="0" x2="336" y2="0">
+      <stop offset="0" stop-color="#A99D48"/>
+      <stop offset="0.5" stop-color="#BE4B3C"/>
+      <stop offset="1" stop-color="#D68A3B"/>
+    </linearGradient>
+    <linearGradient id="hMidRight" gradientUnits="userSpaceOnUse" x1="356" y1="0" x2="532" y2="0">
+      <stop offset="0" stop-color="#D68A3B"/>
+      <stop offset="0.45" stop-color="#DFA53A"/>
+      <stop offset="1" stop-color="#4E9B63"/>
+    </linearGradient>
+
+    <linearGradient id="vLeftTop" gradientUnits="userSpaceOnUse" x1="0" y1="-20" x2="0" y2="156">
+      <stop offset="0" stop-color="#4E9B63"/>
+      <stop offset="0.58" stop-color="#7FA650"/>
+      <stop offset="1" stop-color="#739F55"/>
+    </linearGradient>
+    <linearGradient id="vLeftCenter" gradientUnits="userSpaceOnUse" x1="0" y1="176" x2="0" y2="336">
+      <stop offset="0" stop-color="#739F55"/>
+      <stop offset="0.5" stop-color="#7FA650"/>
+      <stop offset="1" stop-color="#A99D48"/>
+    </linearGradient>
+    <linearGradient id="vLeftBottom" gradientUnits="userSpaceOnUse" x1="0" y1="356" x2="0" y2="532">
+      <stop offset="0" stop-color="#A99D48"/>
+      <stop offset="0.55" stop-color="#7FA650"/>
+      <stop offset="1" stop-color="#4E9B63"/>
+    </linearGradient>
+
+    <linearGradient id="vMidTop" gradientUnits="userSpaceOnUse" x1="0" y1="-20" x2="0" y2="156">
+      <stop offset="0" stop-color="#86A84E"/>
+      <stop offset="0.6" stop-color="#BE4B3C"/>
+      <stop offset="1" stop-color="#B77142"/>
+    </linearGradient>
+    <linearGradient id="vMidCenter" gradientUnits="userSpaceOnUse" x1="0" y1="176" x2="0" y2="336">
+      <stop offset="0" stop-color="#B77142"/>
+      <stop offset="0.45" stop-color="#BE4B3C"/>
+      <stop offset="1" stop-color="#D68A3B"/>
+    </linearGradient>
+    <linearGradient id="vMidBottom" gradientUnits="userSpaceOnUse" x1="0" y1="356" x2="0" y2="532">
+      <stop offset="0" stop-color="#D68A3B"/>
+      <stop offset="0.35" stop-color="#DFA53A"/>
+      <stop offset="1" stop-color="#4E9B63"/>
+    </linearGradient>
+
+  </defs>
+
+  <g clip-path="url(#tile)">
+    <!-- Paper. City blocks are the ground showing between the roads. -->
+    <rect x="0" y="0" width="512" height="512" fill="#EFEDE8"/>
+
+    <!-- The map is projected into a SimCity-style isometric diamond. -->
+    <polygon points="16,296 256,416 256,430 16,310" fill="#817D75"/>
+    <polygon points="496,296 256,416 256,430 496,310" fill="#68655F"/>
+
+    <!-- Recessed road plane. The marker tip lands at its exact centre: 256,296. -->
+    <g transform="matrix(0.46875 0.234375 -0.46875 0.234375 256 176)" clip-path="url(#gridPlane)">
+      <rect x="0" y="0" width="512" height="512" fill="#AAA69E"/>
+
+      <!-- Road surfaces meet junction tiles at identical colours on every incoming branch. -->
+      <g stroke-width="20" fill="none">
+        <path d="M-20 166 H156" stroke="url(#hTopLeft)"/>
+        <path d="M176 166 H336" stroke="url(#hTopCenter)"/>
+        <path d="M356 166 H532" stroke="url(#hTopRight)"/>
+        <path d="M-20 346 H156" stroke="url(#hMidLeft)"/>
+        <path d="M176 346 H336" stroke="url(#hMidCenter)"/>
+        <path d="M356 346 H532" stroke="url(#hMidRight)"/>
+        <path d="M166 -20 V156" stroke="url(#vLeftTop)"/>
+        <path d="M166 176 V336" stroke="url(#vLeftCenter)"/>
+        <path d="M166 356 V532" stroke="url(#vLeftBottom)"/>
+        <path d="M346 -20 V156" stroke="url(#vMidTop)"/>
+        <path d="M346 176 V336" stroke="url(#vMidCenter)"/>
+        <path d="M346 356 V532" stroke="url(#vMidBottom)"/>
+      </g>
+
+      <rect x="156" y="156" width="20" height="20" fill="#739F55"/>
+      <rect x="336" y="156" width="20" height="20" fill="#B77142"/>
+      <rect x="156" y="336" width="20" height="20" fill="#A99D48"/>
+      <rect x="336" y="336" width="20" height="20" fill="#D68A3B"/>
+    </g>
+
+    <!-- Flat isometric block faces leave the recessed roads unobstructed. -->
+    <g transform="matrix(0.46875 0.234375 -0.46875 0.234375 256 176)" stroke="#F8F6F1" stroke-width="2">
+      <rect x="0" y="0" width="152" height="152" fill="#EFEDE8"/>
+      <rect x="180" y="0" width="152" height="152" fill="#EFEDE8"/>
+      <rect x="360" y="0" width="152" height="152" fill="#EFEDE8"/>
+      <rect x="0" y="180" width="152" height="152" fill="#EFEDE8"/>
+      <rect x="180" y="180" width="152" height="152" fill="#EFEDE8"/>
+      <rect x="360" y="180" width="152" height="152" fill="#E7E4DD"/>
+      <rect x="0" y="360" width="152" height="152" fill="#EFEDE8"/>
+      <rect x="180" y="360" width="152" height="152" fill="#E7E4DD"/>
+      <rect x="360" y="360" width="152" height="152" fill="#E2E7DB"/>
+    </g>
+
+    <!-- Faint ground contact shadow, confined to the isometric map surface. -->
+    <ellipse cx="266" cy="304" rx="54" ry="12" fill="#000000" opacity="0.12"
+      filter="url(#mapContactShadow)" clip-path="url(#mapDiamondScreen)"/>
+
+    <!--
+      Black location pin based on the supplied SVG. It is a single uninterrupted solid path,
+      with the CS2 mark drawn directly over the black fill.
+    -->
+    <g transform="translate(126 36) scale(0.5078125)" filter="url(#pinShadow)">
+      <path fill="url(#pinFace)" stroke="#050506" stroke-width="4" d="M87.084,192c-0.456-5.272-0.688-10.6-0.688-16C86.404,78.8,162.34,0,256.004,0s169.6,78.8,169.6,176c0,5.392-0.232,10.728-0.688,16h0.688c0,96.184-169.6,320-169.6,320s-169.6-223.288-169.6-320H87.084z"/>
+    </g>
+
+    <!-- Cities: Skylines II mark, centered directly on the pin. -->
+    <g transform="translate(213.205 69.25) scale(0.159616) translate(-148.5 -208.37)" fill="#FFFFFF">
+      <path d="M 175.12 340.11 C 250.77 296.22 326.41 252.30 402.05 208.41 C 401.55 251.82 402.08 295.26 401.79 338.67 C 354.75 365.63 307.87 392.87 260.88 419.90 C 260.84 452.61 260.87 485.31 260.86 518.02 C 260.96 534.21 260.61 550.40 261.00 566.58 C 228.80 547.61 196.54 528.75 164.36 509.73 C 155.03 504.11 149.66 493.58 148.56 482.98 C 148.56 449.00 148.57 415.02 148.55 381.04 C 149.34 370.52 152.94 359.97 159.93 351.91 C 164.09 346.95 169.46 343.18 175.12 340.11 Z"/>
+      <path d="M 431.66 208.37 C 508.66 252.84 585.83 296.99 662.86 341.39 C 675.84 349.20 684.32 363.84 684.71 378.98 C 684.79 413.99 684.60 449.01 684.80 484.02 C 616.65 444.94 548.58 405.71 480.45 366.60 C 464.20 357.10 447.70 348.02 431.59 338.31 C 431.85 295.00 431.70 251.68 431.66 208.37 Z"/>
+      <path d="M 572.72 451.55 C 604.44 470.44 636.38 488.97 668.16 507.77 C 678.12 513.35 684.64 524.51 684.72 535.92 C 684.71 569.61 684.72 603.31 684.72 637.01 C 684.67 652.36 676.22 667.35 663.13 675.36 C 586.00 720.24 508.75 764.87 431.66 809.81 C 431.76 766.46 431.75 723.12 431.66 679.78 C 478.65 652.37 525.98 625.50 572.92 598.03 C 572.43 549.21 573.04 500.38 572.72 451.55 Z"/>
+      <path d="M 148.50 534.12 C 179.21 551.33 209.59 569.16 240.16 586.63 C 293.13 617.04 346.05 647.52 399.02 677.93 C 399.98 678.58 401.25 678.93 401.90 679.98 C 401.92 723.22 401.66 766.48 402.03 809.71 C 325.17 765.63 248.39 721.40 171.55 677.27 C 160.30 670.76 152.17 659.20 149.77 646.43 C 149.48 644.26 148.85 642.15 148.59 639.99 C 148.48 604.70 148.66 569.41 148.50 534.12 Z"/>
+    </g>
+  </g>
+</svg>

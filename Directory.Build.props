@@ -1,0 +1,19 @@
+<Project>
+
+	<!--
+	  This project lives inside a Google Drive mirrored folder ("Visual Studio Projects").
+	  Google Drive stamps the ReadOnly attribute onto directories it syncs a few seconds
+	  after they are created. Directory.Delete then fails with
+	  "Access to the path '...' is denied", which breaks both the ClearOutput target
+	  (RemoveDir $(OutDir)) and ModPostProcessor's cleanup of $(OutDir)\Temp.
+
+	  Keeping bin/ and obj/ outside the synced tree avoids the problem entirely, and
+	  stops Drive from syncing build artifacts. Source stays in Drive as before.
+	-->
+	<PropertyGroup>
+		<_ModBuildRoot>$(LOCALAPPDATA)\CS2ModBuild\$(MSBuildProjectName)</_ModBuildRoot>
+		<BaseOutputPath>$(_ModBuildRoot)\bin\</BaseOutputPath>
+		<BaseIntermediateOutputPath>$(_ModBuildRoot)\obj\</BaseIntermediateOutputPath>
+	</PropertyGroup>
+
+</Project>

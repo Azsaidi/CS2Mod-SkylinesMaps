@@ -1,0 +1,81 @@
+using Colossal;
+using System.Collections.Generic;
+
+namespace SkylinesMaps
+{
+    public class LocaleEN : IDictionarySource
+    {
+        private readonly ModSettings m_Setting;
+
+        public LocaleEN(ModSettings setting)
+        {
+            m_Setting = setting;
+        }
+
+        public IEnumerable<KeyValuePair<string, string>> ReadEntries(IList<IDictionaryEntryError> errors, Dictionary<string, int> indexCounts)
+        {
+            return new Dictionary<string, string>
+            {
+                { m_Setting.GetSettingsLocaleID(), ModAssemblyInfo.Title },
+                { m_Setting.GetOptionTabLocaleID(ModSettings.kSection), "Main" },
+
+                { m_Setting.GetOptionGroupLocaleID(ModSettings.kAppearanceGroup), "Appearance" },
+                { m_Setting.GetOptionGroupLocaleID(ModSettings.kThresholdGroup), "Thresholds" },
+                { m_Setting.GetOptionGroupLocaleID(ModSettings.kKeybindingGroup), "Key bindings" },
+                { m_Setting.GetOptionGroupLocaleID(ModSettings.kAboutGroup), "About" },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.Version)), "Version" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.Version)), "Installed version of this mod." },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.ResetSettings)), "Reset settings" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.ResetSettings)), "Return every setting to its default value." },
+                { m_Setting.GetOptionWarningLocaleID(nameof(ModSettings.ResetSettings)), "Reset all settings to their defaults?" },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.Palette)), "Color palette" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.Palette)), "Colors used to shade roads from jammed to free flowing." },
+
+                { m_Setting.GetEnumValueLocaleID(ModSettings.ColorPreset.GoogleMaps), "Google Maps" },
+                { m_Setting.GetEnumValueLocaleID(ModSettings.ColorPreset.CS1Classic), "Cities: Skylines 1" },
+                { m_Setting.GetEnumValueLocaleID(ModSettings.ColorPreset.HighContrast), "High contrast" },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.ShowCityTraffic)), "Show city traffic readout" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.ShowCityTraffic)), "Shows the city wide average above the map legend in the traffic panel." },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.MinimumTraffic)), "Minimum traffic" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.MinimumTraffic)), "How many vehicles per 100 m of road are needed before congestion is shown at full strength. Raise it if a couple of slow cars turn a whole road red." },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.Responsiveness)), "Responsiveness" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.Responsiveness)), "How quickly colors react to changing traffic. Higher updates faster but flickers more." },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.GradientSteps)), "Gradient steps" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.GradientSteps)), "Number of discrete color bands. Set to 0 to match the base game traffic view." },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.JammedBelow)), "Jammed below" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.JammedBelow)), "Roads moving at or below this share of their free-flow speed are drawn fully jammed. Raise it to make congestion show up sooner." },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.FreeFlowingAbove)), "Free flowing above" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.FreeFlowingAbove)), "Roads moving at or above this share of their free-flow speed are drawn fully free flowing. Lower it to be more forgiving of busy but moving traffic." },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.ToggleInfoviewBinding)), "Toggle traffic infoview" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.ToggleInfoviewBinding)), "Opens and closes the traffic infoview." },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.ResetBindings)), "Reset key bindings" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.ResetBindings)), "Reset all key bindings of the mod." },
+
+                { m_Setting.GetBindingKeyLocaleID(Mod.kToggleInfoviewActionName), "Toggle key" },
+                { m_Setting.GetBindingMapLocaleID(), ModAssemblyInfo.Title },
+
+                // Infomode shown in the vanilla Traffic infoview.
+                { Systems.CongestionInfomodeSystem.kInfomodeLocaleID, "Live Congestion" },
+                { Systems.CongestionInfomodeSystem.kInfomodeTooltipLocaleID, "Colors roads by how fast traffic is actually moving compared to the speed limit, measured from the vehicles on the road right now." },
+                { Systems.CongestionInfomodeSystem.kLowLabelLocaleID, "Jammed" },
+                { Systems.CongestionInfomodeSystem.kMediumLabelLocaleID, "Slow" },
+                { Systems.CongestionInfomodeSystem.kHighLabelLocaleID, "Free flowing" },
+            };
+        }
+
+        public void Unload()
+        {
+        }
+    }
+}

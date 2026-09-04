@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36717.8 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SkylinesMaps", "SkylinesMaps.csproj", "{5FE2167E-B2FA-4237-A753-430A12E8158F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5FE2167E-B2FA-4237-A753-430A12E8158F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5FE2167E-B2FA-4237-A753-430A12E8158F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5FE2167E-B2FA-4237-A753-430A12E8158F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5FE2167E-B2FA-4237-A753-430A12E8158F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {04F0C93A-E4F9-46E1-9528-F8F94FB40854}
+	EndGlobalSection
+EndGlobal
