@@ -6,7 +6,7 @@
 		<!--The file where mod information which is required for publishing mod on PDX mods are stored-->
 		<PublishConfigurationPath>Properties\PublishConfiguration.xml</PublishConfigurationPath>
 		<Title>Skylines Maps</Title>
-		<Version>0.9.0</Version>
+		<Version>0.9.1</Version>
 		<Description>A live traffic infoview that resembles real life navigation apps</Description>
 		<Copyright>Copyright © 2026</Copyright>
 		<TreatWarningsAsErrors>True</TreatWarningsAsErrors>
@@ -18,6 +18,12 @@
 	<!--Imports must be after PropertyGroup block-->
 	<Import Project="$([System.Environment]::GetEnvironmentVariable('CSII_TOOLPATH', 'EnvironmentVariableTarget.User'))\Mod.props" />
 	<Import Project="$([System.Environment]::GetEnvironmentVariable('CSII_TOOLPATH', 'EnvironmentVariableTarget.User'))\Mod.targets" />
+
+	<!-- Used to replace the traffic infoview chart data. Shipped with the mod, as the base game
+	     does not provide Harmony. -->
+	<ItemGroup>
+		<PackageReference Include="Lib.Harmony" Version="2.2.2" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<Reference Include="Game">

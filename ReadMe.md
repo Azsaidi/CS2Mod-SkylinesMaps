@@ -8,7 +8,8 @@ The mod adds a new layer to the vanilla Traffic infoview, showing the actual liv
 ## Features
 
 - Live Congestion mode inside the existing Traffic infoview
-- City wide average congestion readout under the vanilla graph
+- Traffic flow graph is now useful and reflect the live congestion percentage every 15 ingame minutes.
+- City wide live congestion readout under the graph
 - Different colour palettes
 - Ability to adjust values and fine tine tune how traffic gets decided to be congested
 - Keyboard shortcut to open the traffic infoview directly, Ctrl+T by default
@@ -16,8 +17,12 @@ The mod adds a new layer to the vanilla Traffic infoview, showing the actual liv
 
 ## Savegame Combaitibility
 
-The mod does not touch savegames, and therefore should be safe to remove at any time. I have tested the mod with almost 250 other mods and have not encountered any compatibility issues.
+The mod is safe to remove any time to restoree the vanilla implementation. I have tested the mod with almost 250 other mods and have not encountered any compatibility issues.
 If you do encounter any, please feel free to write to me on pdx forums or in the modding discord.
+
+## Acknowledgements
+
+I would like to thank rcav8tr for their amazing modding guide and CityPlannerPlays and his community for thier feedback.
 
 ## AI Declaration
 

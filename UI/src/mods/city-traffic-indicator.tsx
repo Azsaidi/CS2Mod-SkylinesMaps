@@ -31,7 +31,7 @@ export const CityTrafficIndicator = () => {
 
             <div style={scaleStyle}>
                 <span>0%</span>
-                <span>Average Traffic Flow</span>
+                <span>Live Traffic Flow</span>
                 <span>100%</span>
             </div>
         </div>
@@ -79,6 +79,8 @@ const markerStyle: React.CSSProperties = {
     borderRadius: "2rem",
     background: "#ffffff",
     boxShadow: "0 0 4rem rgba(0, 0, 0, 0.8)",
+    // The value is only republished every few seconds, so glide rather than teleport.
+    transition: "left 0.8s ease-out",
 };
 
 const scaleStyle: React.CSSProperties = {

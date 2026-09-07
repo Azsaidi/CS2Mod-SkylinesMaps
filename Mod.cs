@@ -1,9 +1,12 @@
-using Colossal.IO.AssetDatabase;
+﻿using Colossal.IO.AssetDatabase;
 using Colossal.Logging;
 using Game;
 using Game.Input;
 using Game.Modding;
 using Game.SceneFlow;
+using HarmonyLib;
+using System;
+using System.Linq;
 using SkylinesMaps.Systems;
 
 namespace SkylinesMaps
@@ -14,8 +17,12 @@ namespace SkylinesMaps
 
         public const string kToggleInfoviewActionName = "ToggleTrafficInfoview";
 
+        public const string kHarmonyId = "Azsaidi." + nameof(SkylinesMaps);
+
         public static ModSettings Settings { get; private set; }
         public static ProxyAction ToggleInfoviewAction { get; private set; }
+
+        private Harmony m_Harmony;
 
         public void OnLoad(UpdateSystem updateSystem)
         {
@@ -35,6 +42,8 @@ namespace SkylinesMaps
 
             AssetDatabase.global.LoadSettings(nameof(SkylinesMaps), Settings, new ModSettings(this));
 
+            PatchTrafficFlowChart();
+
             updateSystem.UpdateAt<CongestionInfomodeSystem>(SystemUpdatePhase.UIUpdate);
 
             // Must run after NetColorSystem, which rewrites every EdgeColor each rendering frame.
@@ -44,9 +53,29 @@ namespace SkylinesMaps
             updateSystem.UpdateAt<TrafficInfoviewToggleSystem>(SystemUpdatePhase.UIUpdate);
         }
 
+        private void PatchTrafficFlowChart()
+        {
+            try
+            {
+                m_Harmony = new Harmony(kHarmonyId);
+                m_Harmony.PatchAll(typeof(Mod).Assembly);
+                log.Info($"Patched traffic flow chart ({m_Harmony.GetPatchedMethods().Count()} method(s))");
+            }
+            catch (Exception e)
+            {
+                log.Warn($"Could not patch the traffic flow chart, it will keep the vanilla data: {e.Message}");
+            }
+        }
+
         public void OnDispose()
         {
             log.Info(nameof(OnDispose));
+
+            if (m_Harmony != null)
+            {
+                m_Harmony.UnpatchAll(kHarmonyId);
+                m_Harmony = null;
+            }
 
             if (Settings != null)
             {

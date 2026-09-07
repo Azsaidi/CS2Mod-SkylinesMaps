@@ -1,3 +1,4 @@
+using Colossal.Serialization.Entities;
 using Game;
 using Game.Common;
 using Game.Net;
@@ -13,7 +14,7 @@ using Unity.Mathematics;
 
 namespace SkylinesMaps.Systems
 {
-    public partial class LiveCongestionSystem : GameSystemBase
+    public partial class LiveCongestionSystem : GameSystemBase, ISerializable, IDefaultSerializable
     {
         private const float kMinSpeedLimit = 0.01f;
 
@@ -25,6 +26,24 @@ namespace SkylinesMaps.Systems
 
         /// Rendering frames between vehicle samples, approx 4 times/s at 60fps.
         private const int kSampleInterval = 15;
+
+        private const float kDefaultLaneCount = 2f;
+
+        private const float kCityJamRatio = 0.10f;
+
+        private const float kCityFreeRatio = 0.95f;
+
+        /// Occupied lane metres below which the city counts as empty rather than jammed.
+        private const float kMinCityWeight = 1f;
+
+        private const float kCityFlowSmoothing = 1.5f;
+
+        private const float kCityFlowInterval = 3f;
+
+        /// Slots in the infoview chart, one per 15 in-game mins across a day.
+        private const int kHistorySlots = 96;
+
+        private const int kMaxHistorySlots = 4096;
 
         [BurstCompile]
         private struct SampleVehiclesJob : IJobChunk
@@ -116,10 +135,15 @@ namespace SkylinesMaps.Systems
         {
             [ReadOnly] public EntityTypeHandle m_EntityType;
             [ReadOnly] public ComponentTypeHandle<EdgeGeometry> m_GeometryType;
+            [ReadOnly] public ComponentTypeHandle<Game.Net.Composition> m_CompositionType;
             public ComponentTypeHandle<EdgeColor> m_EdgeColorType;
 
+            [ReadOnly] public BufferLookup<NetCompositionLane> m_CompositionLanes;
             [ReadOnly] public NativeParallelMultiHashMap<Entity, float4> m_Samples;
             public NativeParallelHashMap<Entity, float2> m_Smoothed;
+
+            /// Compositions are shared by hundreds of edges, so each one is only counted once.
+            public NativeParallelHashMap<Entity, float> m_LaneCounts;
 
             public byte m_Index;
             public float m_RangeMin;
@@ -139,8 +163,10 @@ namespace SkylinesMaps.Systems
             {
                 NativeArray<Entity> entities = chunk.GetNativeArray(m_EntityType);
                 NativeArray<EdgeGeometry> geometries = chunk.GetNativeArray(ref m_GeometryType);
+                NativeArray<Game.Net.Composition> compositions = chunk.GetNativeArray(ref m_CompositionType);
                 NativeArray<EdgeColor> colors = chunk.GetNativeArray(ref m_EdgeColorType);
                 bool hasGeometry = geometries.Length == entities.Length;
+                bool hasComposition = compositions.Length == entities.Length;
 
                 for (int i = 0; i < entities.Length; i++)
                 {
@@ -175,6 +201,12 @@ namespace SkylinesMaps.Systems
                             : live;
 
                         m_Smoothed[edge] = smoothed;
+
+                        float lanes = GetLaneCount(hasComposition ? compositions[i].m_Edge : Entity.Null);
+                        float2 weights = lanes * length * 0.5f * confidence;
+
+                        m_CityStats[0] += weights.x * smoothed.x + weights.y * smoothed.y;
+                        m_CityStats[1] += weights.x + weights.y;
                     }
                     else if (!m_Smoothed.TryGetValue(edge, out smoothed))
                     {
@@ -182,9 +214,6 @@ namespace SkylinesMaps.Systems
                     }
 
                     float2 t = math.saturate((smoothed - m_RangeMin) / math.max(1e-5f, m_RangeMax - m_RangeMin));
-
-                    m_CityStats[0] += (smoothed.x + smoothed.y) * 0.5f;
-                    m_CityStats[1] += 1f;
 
                     if (!m_WriteColors)
                     {
@@ -197,6 +226,40 @@ namespace SkylinesMaps.Systems
                     color.m_Value1 = (byte)math.clamp((int)math.round(t.y * 255f), 0, 255);
                     colors[i] = color;
                 }
+            }
+
+            private float GetLaneCount(Entity composition)
+            {
+                if (composition == Entity.Null)
+                {
+                    return kDefaultLaneCount;
+                }
+
+                if (m_LaneCounts.TryGetValue(composition, out float cached))
+                {
+                    return cached;
+                }
+
+                if (!m_CompositionLanes.HasBuffer(composition))
+                {
+                    return kDefaultLaneCount;
+                }
+
+                DynamicBuffer<NetCompositionLane> lanes = m_CompositionLanes[composition];
+                float count = 0f;
+                for (int i = 0; i < lanes.Length; i++)
+                {
+                    LaneFlags flags = lanes[i].m_Flags;
+                    if ((flags & LaneFlags.Road) != 0
+                        && (flags & (LaneFlags.Slave | LaneFlags.Master | LaneFlags.Parking | LaneFlags.Track)) == 0)
+                    {
+                        count += 1f;
+                    }
+                }
+
+                count = math.max(1f, count);
+                m_LaneCounts[composition] = count;
+                return count;
             }
 
             void IJobChunk.Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)
@@ -345,6 +408,8 @@ namespace SkylinesMaps.Systems
 
         public static float CityFlowPercent { get; private set; } = 100f;
 
+        public static float[] FlowHistory { get; private set; }
+
         private CongestionInfomodeSystem m_InfomodeSystem;
         private EntityQuery m_VehicleQuery;
         private EntityQuery m_EdgeQuery;
@@ -353,15 +418,28 @@ namespace SkylinesMaps.Systems
 
         private NativeParallelMultiHashMap<Entity, float4> m_Samples;
         private NativeParallelHashMap<Entity, float2> m_Smoothed;
+        private NativeParallelHashMap<Entity, float> m_LaneCounts;
         private NativeArray<float> m_CityStats;
         private JobHandle m_LastHandle;
         private int m_FrameCounter;
+
+        /// Runs live behind the scenes. CityFlowPercent only catches up to it every few seconds.
+        private float m_CityFlowSmoothed = 100f;
+        private float m_CityFlowTimer = kCityFlowInterval;
+        private bool m_CityFlowPrimed;
+
+        private Game.Simulation.TimeSystem m_TimeSystem;
+        private float[] m_History;
 
         protected override void OnCreate()
         {
             base.OnCreate();
 
             m_InfomodeSystem = World.GetOrCreateSystemManaged<CongestionInfomodeSystem>();
+            m_TimeSystem = World.GetOrCreateSystemManaged<Game.Simulation.TimeSystem>();
+
+            m_History = new float[kHistorySlots];
+            FlowHistory = null;
 
             m_VehicleQuery = GetEntityQuery(
                 ComponentType.ReadOnly<Game.Objects.Moving>(),
@@ -389,6 +467,7 @@ namespace SkylinesMaps.Systems
 
             m_Samples = new NativeParallelMultiHashMap<Entity, float4>(1024, Allocator.Persistent);
             m_Smoothed = new NativeParallelHashMap<Entity, float2>(1024, Allocator.Persistent);
+            m_LaneCounts = new NativeParallelHashMap<Entity, float>(2048, Allocator.Persistent);
             m_CityStats = new NativeArray<float>(2, Allocator.Persistent);
         }
 
@@ -404,22 +483,129 @@ namespace SkylinesMaps.Systems
                 m_Smoothed.Dispose();
             }
 
+            if (m_LaneCounts.IsCreated)
+            {
+                m_LaneCounts.Dispose();
+            }
+
             if (m_CityStats.IsCreated)
             {
                 m_CityStats.Dispose();
             }
 
             Active = false;
+            FlowHistory = null;
 
             base.OnDestroy();
+        }
+
+        public void Serialize<TWriter>(TWriter writer) where TWriter : IWriter
+        {
+            writer.Write(kHistorySlots);
+
+            for (int i = 0; i < kHistorySlots; i++)
+            {
+                writer.Write(m_History[i]);
+            }
+        }
+
+        public void Deserialize<TReader>(TReader reader) where TReader : IReader
+        {
+            reader.Read(out int count);
+
+            Clear();
+
+            if (count >= 0 && count <= kMaxHistorySlots)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    reader.Read(out float value);
+
+                    if (i < kHistorySlots)
+                    {
+                        m_History[i] = value;
+                    }
+                }
+            }
+            else
+            {
+                Mod.log.Warn($"Ignoring a traffic chart history block with an implausible length of {count}");
+            }
+
+            FlowHistory = count == kHistorySlots ? m_History : null;
+        }
+
+        public void SetDefaults(Context context)
+        {
+            Clear();
+            FlowHistory = null;
+        }
+
+        private void Clear()
+        {
+            if (m_History == null)
+            {
+                m_History = new float[kHistorySlots];
+                return;
+            }
+
+            for (int i = 0; i < kHistorySlots; i++)
+            {
+                m_History[i] = 0f;
+            }
+        }
+
+        private void RecordHistory()
+        {
+            if (m_TimeSystem == null || m_History == null || !m_CityFlowPrimed)
+            {
+                return;
+            }
+
+            int slot = math.clamp((int)(m_TimeSystem.normalizedTime * kHistorySlots), 0, kHistorySlots - 1);
+
+            if (FlowHistory == null)
+            {
+                for (int i = 0; i < kHistorySlots; i++)
+                {
+                    m_History[i] = m_CityFlowSmoothed;
+                }
+
+                FlowHistory = m_History;
+            }
+
+            m_History[slot] = m_CityFlowSmoothed;
         }
 
         protected override void OnUpdate()
         {
             m_LastHandle.Complete();
-            if (m_CityStats.IsCreated && m_CityStats[1] > 0f)
+            if (m_CityStats.IsCreated)
             {
-                CityFlowPercent = math.saturate(m_CityStats[0] / m_CityStats[1]) * 100f;
+                float weight = m_CityStats[1];
+
+                float target = 100f;
+                if (weight > kMinCityWeight)
+                {
+                    float mean = m_CityStats[0] / weight;
+                    target = math.saturate((mean - kCityJamRatio) / (kCityFreeRatio - kCityJamRatio)) * 100f;
+                }
+
+                float delta = math.min(UnityEngine.Time.unscaledDeltaTime, kCityFlowInterval);
+
+                m_CityFlowSmoothed = m_CityFlowPrimed
+                    ? math.lerp(m_CityFlowSmoothed, target, math.saturate(delta / kCityFlowSmoothing))
+                    : target;
+                m_CityFlowPrimed = true;
+
+                m_CityFlowTimer += delta;
+                if (m_CityFlowTimer >= kCityFlowInterval)
+                {
+                    m_CityFlowTimer = 0f;
+                    CityFlowPercent = m_CityFlowSmoothed;
+                }
+
+                RecordHistory();
             }
 
             ModSettings settings = Mod.Settings;
@@ -468,6 +654,8 @@ namespace SkylinesMaps.Systems
                 if (m_Smoothed.Count() > edgeCount * 2)
                 {
                     m_Smoothed.Clear();
+
+                    m_LaneCounts.Clear();
                 }
 
                 if (m_Smoothed.Capacity < edgeCount)
@@ -498,9 +686,12 @@ namespace SkylinesMaps.Systems
             WriteEdgeColorsJob writeJob = default(WriteEdgeColorsJob);
             writeJob.m_EntityType = GetEntityTypeHandle();
             writeJob.m_GeometryType = GetComponentTypeHandle<EdgeGeometry>(isReadOnly: true);
+            writeJob.m_CompositionType = GetComponentTypeHandle<Game.Net.Composition>(isReadOnly: true);
             writeJob.m_EdgeColorType = GetComponentTypeHandle<EdgeColor>(isReadOnly: false);
+            writeJob.m_CompositionLanes = GetBufferLookup<NetCompositionLane>(isReadOnly: true);
             writeJob.m_Samples = m_Samples;
             writeJob.m_Smoothed = m_Smoothed;
+            writeJob.m_LaneCounts = m_LaneCounts;
             writeJob.m_Index = (byte)active.m_Index;
             writeJob.m_RangeMin = status.m_Range.min;
             writeJob.m_RangeMax = status.m_Range.max;
