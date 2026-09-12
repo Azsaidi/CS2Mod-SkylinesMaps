@@ -18,8 +18,8 @@ namespace SkylinesMaps.Systems
     {
         private const float kMinSpeedLimit = 0.01f;
 
-        /// Slowness is expected by geometry, a vehicle only counts as congested once it is nearly stopped. 
-     
+        /// Slowness is expected by geometry, a vehicle only counts as congested once it is nearly stopped.
+
         private const float kStoppedRatio = 0.15f;
 
         private const float kNodeLength = 30f;
@@ -45,9 +45,20 @@ namespace SkylinesMaps.Systems
 
         private const int kMaxHistorySlots = 4096;
 
+        /// In-game seconds of waiting at a junction that still count as normal at a factor of 100%.
+        private const float kJunctionBaseWait = 8f;
+
+        private const float kRoundaboutBaseWait = 3f;
+        private const float kWaitRatio = 0.5f;
+
+        private const float kFramesPerSecond = 60f;
+
+        private const float kMaxWaitStep = 5f;
+
         [BurstCompile]
         private struct SampleVehiclesJob : IJobChunk
         {
+            [ReadOnly] public EntityTypeHandle m_EntityType;
             [ReadOnly] public ComponentTypeHandle<Game.Objects.Moving> m_MovingType;
             [ReadOnly] public ComponentTypeHandle<CarCurrentLane> m_CurrentLaneType;
             [ReadOnly] public ComponentTypeHandle<PrefabRef> m_PrefabRefType;
@@ -57,11 +68,22 @@ namespace SkylinesMaps.Systems
             [ReadOnly] public ComponentLookup<EdgeLane> m_EdgeLaneData;
             [ReadOnly] public ComponentLookup<Road> m_RoadData;
             [ReadOnly] public ComponentLookup<Edge> m_EdgeData;
+            [ReadOnly] public ComponentLookup<Game.Net.TrafficLights> m_TrafficLightsData;
+            [ReadOnly] public ComponentLookup<Game.Net.Roundabout> m_RoundaboutData;
+            [ReadOnly] public BufferLookup<ConnectedEdge> m_ConnectedEdges;
+
+            [ReadOnly] public NativeParallelHashMap<Entity, float> m_PreviousWaits;
+            public NativeParallelHashMap<Entity, float>.ParallelWriter m_NextWaits;
 
             public NativeParallelMultiHashMap<Entity, float4>.ParallelWriter m_Samples;
 
+            public float m_WaitStep;
+            public float m_JunctionWait;
+            public float m_RoundaboutWait;
+
             public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)
             {
+                NativeArray<Entity> vehicles = chunk.GetNativeArray(m_EntityType);
                 NativeArray<Game.Objects.Moving> movings = chunk.GetNativeArray(ref m_MovingType);
                 NativeArray<CarCurrentLane> currentLanes = chunk.GetNativeArray(ref m_CurrentLaneType);
                 NativeArray<PrefabRef> prefabRefs = chunk.GetNativeArray(ref m_PrefabRefType);
@@ -78,9 +100,8 @@ namespace SkylinesMaps.Systems
                         continue;
                     }
 
-                    bool geometrySlowed =
-                        !m_EdgeData.HasComponent(owner.m_Owner)
-                        || (carLane.m_Flags & Game.Net.CarLaneFlags.Roundabout) != 0;
+                    bool onNode = !m_EdgeData.TryGetComponent(owner.m_Owner, out Edge edge);
+                    bool roundaboutLane = (carLane.m_Flags & Game.Net.CarLaneFlags.Roundabout) != 0;
 
                     float speedLimit = carLane.m_SpeedLimit;
                     if (speedLimit <= kMinSpeedLimit)
@@ -88,7 +109,7 @@ namespace SkylinesMaps.Systems
                         continue;
                     }
 
-                
+
                     float reference = speedLimit;
                     if (hasPrefabs
                         && m_CarData.TryGetComponent(prefabRefs[i].m_Prefab, out CarData carData)
@@ -99,14 +120,17 @@ namespace SkylinesMaps.Systems
 
                     float ratio = math.saturate(math.length(movings[i].m_Velocity) / reference);
 
-                    if (geometrySlowed)
-                    {
-                        ratio = math.saturate(ratio / kStoppedRatio);
-                    }
+                    float value = onNode || roundaboutLane
+                        ? math.saturate(ratio / kStoppedRatio)
+                        : ratio;
 
-                    // Split onto the two sides of the road the way TrafficFlowSystem does.
+                    bool hasEdgeLane = m_EdgeLaneData.TryGetComponent(lane, out EdgeLane edgeLane);
+
+                    float tolerance = GetWaitTolerance(onNode, roundaboutLane, owner.m_Owner, edge, hasEdgeLane, edgeLane);
+                    value = ApplyWait(vehicles[i], ratio, value, tolerance);
+
                     float2 weights = new float2(1f, 1f);
-                    if (m_EdgeLaneData.TryGetComponent(lane, out EdgeLane edgeLane))
+                    if (hasEdgeLane)
                     {
                         weights = math.select(0f, 1f, new bool2(
                             math.any(edgeLane.m_EdgeDelta == 0f),
@@ -119,9 +143,66 @@ namespace SkylinesMaps.Systems
                     }
 
                     m_Samples.Add(owner.m_Owner, new float4(
-                        ratio * weights.x, weights.x,
-                        ratio * weights.y, weights.y));
+                        value * weights.x, weights.x,
+                        value * weights.y, weights.y));
                 }
+            }
+
+            private float ApplyWait(Entity vehicle, float ratio, float value, float tolerance)
+            {
+                // 1 when stopped, 0 from kWaitRatio up.
+                float waiting = math.saturate(1f - ratio / kWaitRatio);
+                if (waiting <= 0f)
+                {
+                    return value;
+                }
+
+                m_PreviousWaits.TryGetValue(vehicle, out float waited);
+                waited += m_WaitStep * waiting;
+                m_NextWaits.TryAdd(vehicle, waited);
+
+                if (tolerance <= 0f)
+                {
+                    return value;
+                }
+
+                float patience = math.saturate(2f - waited / tolerance);
+                return math.lerp(value, math.max(value, patience), waiting);
+            }
+
+            private float GetWaitTolerance(bool onNode, bool roundaboutLane, Entity owner, Edge edge, bool hasEdgeLane, EdgeLane edgeLane)
+            {
+                if (roundaboutLane)
+                {
+                    return m_RoundaboutWait;
+                }
+
+                Entity node = Entity.Null;
+                if (onNode)
+                {
+                    node = owner;
+                }
+                else if (hasEdgeLane)
+                {
+                    node = edgeLane.m_EdgeDelta.y == 1f ? edge.m_End
+                        : edgeLane.m_EdgeDelta.y == 0f ? edge.m_Start
+                        : Entity.Null;
+                }
+
+                if (node == Entity.Null)
+                {
+                    return 0f;
+                }
+
+                if (m_RoundaboutData.HasComponent(node))
+                {
+                    return m_RoundaboutWait;
+                }
+
+                bool junction = m_TrafficLightsData.HasComponent(node)
+                    || (m_ConnectedEdges.TryGetBuffer(node, out DynamicBuffer<ConnectedEdge> edges) && edges.Length > 2);
+
+                return junction ? m_JunctionWait : 0f;
             }
 
             void IJobChunk.Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)
@@ -153,7 +234,7 @@ namespace SkylinesMaps.Systems
 
             public NativeArray<float> m_CityStats;
 
-   
+
             public bool m_WriteColors;
 
 
@@ -414,6 +495,7 @@ namespace SkylinesMaps.Systems
         public static float[] FlowHistory { get; private set; }
 
         private CongestionInfomodeSystem m_InfomodeSystem;
+        private Game.Simulation.SimulationSystem m_SimulationSystem;
         private EntityQuery m_VehicleQuery;
         private EntityQuery m_EdgeQuery;
         private EntityQuery m_LaneQuery;
@@ -425,6 +507,12 @@ namespace SkylinesMaps.Systems
         private NativeArray<float> m_CityStats;
         private JobHandle m_LastHandle;
         private int m_FrameCounter;
+
+        /// Waits as of the last finished sample, and the map the running sample is writing. Swapped once it finishes.
+        private NativeParallelHashMap<Entity, float> m_Waits;
+        private NativeParallelHashMap<Entity, float> m_NextWaits;
+        private bool m_WaitsPending;
+        private uint m_LastWaitFrame;
 
         /// Runs live behind the scenes. CityFlowPercent only catches up to it every few seconds.
         private float m_CityFlowSmoothed = 100f;
@@ -443,6 +531,7 @@ namespace SkylinesMaps.Systems
 
             m_InfomodeSystem = World.GetOrCreateSystemManaged<CongestionInfomodeSystem>();
             m_TimeSystem = World.GetOrCreateSystemManaged<Game.Simulation.TimeSystem>();
+            m_SimulationSystem = World.GetOrCreateSystemManaged<Game.Simulation.SimulationSystem>();
 
             m_History = new float[kHistorySlots];
             FlowHistory = null;
@@ -474,11 +563,15 @@ namespace SkylinesMaps.Systems
             m_Samples = new NativeParallelMultiHashMap<Entity, float4>(1024, Allocator.Persistent);
             m_Smoothed = new NativeParallelHashMap<Entity, float2>(1024, Allocator.Persistent);
             m_LaneCounts = new NativeParallelHashMap<Entity, float>(2048, Allocator.Persistent);
+            m_Waits = new NativeParallelHashMap<Entity, float>(1024, Allocator.Persistent);
+            m_NextWaits = new NativeParallelHashMap<Entity, float>(1024, Allocator.Persistent);
             m_CityStats = new NativeArray<float>(2, Allocator.Persistent);
         }
 
         protected override void OnDestroy()
         {
+            m_LastHandle.Complete();
+
             if (m_Samples.IsCreated)
             {
                 m_Samples.Dispose();
@@ -492,6 +585,16 @@ namespace SkylinesMaps.Systems
             if (m_LaneCounts.IsCreated)
             {
                 m_LaneCounts.Dispose();
+            }
+
+            if (m_Waits.IsCreated)
+            {
+                m_Waits.Dispose();
+            }
+
+            if (m_NextWaits.IsCreated)
+            {
+                m_NextWaits.Dispose();
             }
 
             if (m_CityStats.IsCreated)
@@ -604,9 +707,36 @@ namespace SkylinesMaps.Systems
             m_History[slot] = m_CityFlowSmoothed;
         }
 
+        private float GetWaitStep()
+        {
+            uint frame = m_SimulationSystem.frameIndex;
+
+            float step = 0f;
+            if (m_LastWaitFrame != 0 && frame >= m_LastWaitFrame)
+            {
+                step = math.min((frame - m_LastWaitFrame) / kFramesPerSecond, kMaxWaitStep);
+            }
+            else if (frame < m_LastWaitFrame)
+            {
+                m_Waits.Clear();
+            }
+
+            m_LastWaitFrame = frame;
+            return step;
+        }
+
         protected override void OnUpdate()
         {
             m_LastHandle.Complete();
+
+            if (m_WaitsPending)
+            {
+                NativeParallelHashMap<Entity, float> finished = m_NextWaits;
+                m_NextWaits = m_Waits;
+                m_Waits = finished;
+                m_WaitsPending = false;
+            }
+
             if (m_CityStats.IsCreated)
             {
                 float weight = m_CityStats[1];
@@ -681,6 +811,12 @@ namespace SkylinesMaps.Systems
                     m_Samples.Capacity = vehicleCount;
                 }
 
+                m_NextWaits.Clear();
+                if (m_NextWaits.Capacity < vehicleCount)
+                {
+                    m_NextWaits.Capacity = vehicleCount;
+                }
+
 
                 if (m_Smoothed.Count() > edgeCount * 2)
                 {
@@ -695,6 +831,7 @@ namespace SkylinesMaps.Systems
                 }
 
                 SampleVehiclesJob sampleJob = default(SampleVehiclesJob);
+                sampleJob.m_EntityType = GetEntityTypeHandle();
                 sampleJob.m_MovingType = GetComponentTypeHandle<Game.Objects.Moving>(isReadOnly: true);
                 sampleJob.m_CurrentLaneType = GetComponentTypeHandle<CarCurrentLane>(isReadOnly: true);
                 sampleJob.m_PrefabRefType = GetComponentTypeHandle<PrefabRef>(isReadOnly: true);
@@ -704,9 +841,18 @@ namespace SkylinesMaps.Systems
                 sampleJob.m_EdgeLaneData = GetComponentLookup<EdgeLane>(isReadOnly: true);
                 sampleJob.m_RoadData = GetComponentLookup<Road>(isReadOnly: true);
                 sampleJob.m_EdgeData = GetComponentLookup<Edge>(isReadOnly: true);
+                sampleJob.m_TrafficLightsData = GetComponentLookup<Game.Net.TrafficLights>(isReadOnly: true);
+                sampleJob.m_RoundaboutData = GetComponentLookup<Game.Net.Roundabout>(isReadOnly: true);
+                sampleJob.m_ConnectedEdges = GetBufferLookup<ConnectedEdge>(isReadOnly: true);
+                sampleJob.m_PreviousWaits = m_Waits;
+                sampleJob.m_NextWaits = m_NextWaits.AsParallelWriter();
                 sampleJob.m_Samples = m_Samples.AsParallelWriter();
+                sampleJob.m_WaitStep = GetWaitStep();
+                sampleJob.m_JunctionWait = kJunctionBaseWait * math.max(0, settings.JunctionJamFactor) / 100f;
+                sampleJob.m_RoundaboutWait = kRoundaboutBaseWait * math.max(0, settings.RoundaboutJamFactor) / 100f;
 
                 inputDeps = JobChunkExtensions.ScheduleParallel(sampleJob, m_VehicleQuery, inputDeps);
+                m_WaitsPending = true;
             }
 
             InfomodeActive active = writeColors

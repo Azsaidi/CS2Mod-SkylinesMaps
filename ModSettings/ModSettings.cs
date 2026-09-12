@@ -8,8 +8,8 @@ using UnityEngine;
 namespace SkylinesMaps
 {
     [FileLocation("ModsSettings/" + nameof(SkylinesMaps) + "/" + nameof(SkylinesMaps))]
-    [SettingsUIGroupOrder(kAppearanceGroup, kThresholdGroup, kKeybindingGroup, kAboutGroup)]
-    [SettingsUIShowGroupName(kAppearanceGroup, kThresholdGroup, kKeybindingGroup, kAboutGroup)]
+    [SettingsUIGroupOrder(kAppearanceGroup, kThresholdGroup, kJunctionGroup, kKeybindingGroup, kAboutGroup)]
+    [SettingsUIShowGroupName(kAppearanceGroup, kThresholdGroup, kJunctionGroup, kKeybindingGroup, kAboutGroup)]
     [SettingsUIKeyboardAction(Mod.kToggleInfoviewActionName, ActionType.Button, usages: new string[] { Usages.kDefaultUsage })]
     public class ModSettings : ModSetting
     {
@@ -17,6 +17,7 @@ namespace SkylinesMaps
 
         public const string kAppearanceGroup = "Appearance";
         public const string kThresholdGroup = "Thresholds";
+        public const string kJunctionGroup = "Junctions";
         public const string kKeybindingGroup = "KeyBinding";
         public const string kAboutGroup = "About";
 
@@ -59,6 +60,14 @@ namespace SkylinesMaps
         [SettingsUISlider(min = 10, max = 100, step = 5, scalarMultiplier = 1, unit = Unit.kPercentage)]
         [SettingsUISection(kSection, kThresholdGroup)]
         public int FreeFlowingAbove { get; set; } = 75;
+
+        [SettingsUISlider(min = 0, max = 300, step = 10, scalarMultiplier = 1, unit = Unit.kPercentage)]
+        [SettingsUISection(kSection, kJunctionGroup)]
+        public int JunctionJamFactor { get; set; } = 100;
+
+        [SettingsUISlider(min = 0, max = 300, step = 10, scalarMultiplier = 1, unit = Unit.kPercentage)]
+        [SettingsUISection(kSection, kJunctionGroup)]
+        public int RoundaboutJamFactor { get; set; } = 100;
 
         [SettingsUISection(kSection, kAboutGroup)]
         public string Version => ModAssemblyInfo.Version;
@@ -135,6 +144,8 @@ namespace SkylinesMaps
             GradientSteps = 3;
             JammedBelow = 20;
             FreeFlowingAbove = 75;
+            JunctionJamFactor = 100;
+            RoundaboutJamFactor = 100;
         }
     }
 }

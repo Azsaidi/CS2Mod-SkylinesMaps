@@ -1,1 +1,1 @@
-- Added a 24 hour average percentage from the live congestion percentage data.
+- Added a new fine tuning option to adjust how congestion is considered at junctions and roundabouts.

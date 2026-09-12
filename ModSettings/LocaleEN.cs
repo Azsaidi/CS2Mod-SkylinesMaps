@@ -21,6 +21,7 @@ namespace SkylinesMaps
 
                 { m_Setting.GetOptionGroupLocaleID(ModSettings.kAppearanceGroup), "Appearance" },
                 { m_Setting.GetOptionGroupLocaleID(ModSettings.kThresholdGroup), "Thresholds" },
+                { m_Setting.GetOptionGroupLocaleID(ModSettings.kJunctionGroup), "Junctions" },
                 { m_Setting.GetOptionGroupLocaleID(ModSettings.kKeybindingGroup), "Key bindings" },
                 { m_Setting.GetOptionGroupLocaleID(ModSettings.kAboutGroup), "About" },
 
@@ -58,6 +59,12 @@ namespace SkylinesMaps
 
                 { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.FreeFlowingAbove)), "Free flowing above" },
                 { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.FreeFlowingAbove)), "Roads moving at or above this share of their free-flow speed are drawn fully free flowing. Lower it to be more forgiving of busy but moving traffic." },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.JunctionJamFactor)), "Junction jam factor" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.JunctionJamFactor)), "How long vehicles can wait at a junction before it counts as jammed. At 100% a wait of about 8 in-game seconds still counts as normal, and the junction is fully jammed by twice that. Raise it if junctions turn red at ordinary red lights; a full traffic light cycle takes roughly 12 to 32 seconds. Set it to 0% to judge junctions by speed alone." },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.RoundaboutJamFactor)), "Roundabout jam factor" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.RoundaboutJamFactor)), "The same for roundabouts, where vehicles only wait for a gap in the traffic. At 100% a wait of about 3 in-game seconds still counts as normal. Set it to 0% to judge roundabouts by speed alone." },
 
                 { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.ToggleInfoviewBinding)), "Toggle traffic infoview" },
                 { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.ToggleInfoviewBinding)), "Opens and closes the traffic infoview." },

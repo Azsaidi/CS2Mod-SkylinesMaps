@@ -16,14 +16,14 @@ The mod adds a new layer to the vanilla Traffic infoview, showing the actual liv
 - Keyboard shortcut to open the traffic infoview directly, Ctrl+T by default
 
 
-## Savegame Combaitibility
+## Savegame Compatibility
 
-The mod is safe to remove any time to restoree the vanilla implementation. I have tested the mod with almost 250 other mods and have not encountered any compatibility issues.
+The mod is safe to remove any time to restore the vanilla implementation. I have tested the mod with almost 250 other mods and have not encountered any compatibility issues.
 If you do encounter any, please feel free to write to me on pdx forums or in the modding discord.
 
 ## Acknowledgements
 
-I would like to thank rcav8tr for their amazing modding guide and CityPlannerPlays and his community for thier feedback.
+I would like to thank rcav8tr for their amazing modding guide and CityPlannerPlays and his community for their feedback.
 
 ## AI Declaration
 
