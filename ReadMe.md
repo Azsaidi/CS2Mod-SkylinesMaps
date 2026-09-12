@@ -10,6 +10,7 @@ The mod adds a new layer to the vanilla Traffic infoview, showing the actual liv
 - Live Congestion mode inside the existing Traffic infoview
 - Traffic flow graph is now useful and reflect the live congestion percentage every 15 ingame minutes.
 - City wide live congestion readout under the graph
+- 24 hour average congestion percentage
 - Different colour palettes
 - Ability to adjust values and fine tine tune how traffic gets decided to be congested
 - Keyboard shortcut to open the traffic infoview directly, Ctrl+T by default

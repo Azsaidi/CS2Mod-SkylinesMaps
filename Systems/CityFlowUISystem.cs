@@ -17,6 +17,10 @@ namespace SkylinesMaps.Systems
             AddUpdateBinding(new GetterValueBinding<float>(
                 kGroup, "cityFlow", () => LiveCongestionSystem.CityFlowPercent));
 
+            // The mean of the stored day of readings, so the last 24 in-game hours.
+            AddUpdateBinding(new GetterValueBinding<float>(
+                kGroup, "cityFlowAverage", () => LiveCongestionSystem.CityFlowAverage));
+
             AddUpdateBinding(new GetterValueBinding<bool>(
                 kGroup, "showCityTraffic", () =>
                     Mod.Settings != null && Mod.Settings.ShowCityTraffic));

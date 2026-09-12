@@ -37,6 +37,9 @@ namespace SkylinesMaps
         [SettingsUISection(kSection, kAppearanceGroup)]
         public bool ShowCityTraffic { get; set; } = true;
 
+        [SettingsUISection(kSection, kAppearanceGroup)]
+        public bool DetailedFlowChart { get; set; } = true;
+
         [SettingsUISlider(min = 1, max = 20, step = 1, scalarMultiplier = 1)]
         [SettingsUISection(kSection, kAppearanceGroup)]
         public int MinimumTraffic { get; set; } = 4;
@@ -126,6 +129,7 @@ namespace SkylinesMaps
         {
             Palette = ColorPreset.GoogleMaps;
             ShowCityTraffic = true;
+            DetailedFlowChart = true;
             MinimumTraffic = 4;
             Responsiveness = 50;
             GradientSteps = 3;

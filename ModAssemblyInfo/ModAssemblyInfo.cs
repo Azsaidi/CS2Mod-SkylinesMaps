@@ -10,7 +10,7 @@ namespace SkylinesMaps
     public class ModAssemblyInfo
     {
         public const string Name        = "SkylinesMaps";
-        public const string Version     = "0.9.1";
+        public const string Version     = "0.9.2";
         public const string Title       = "Skylines Maps";
         public const string Description = "A live traffic infoview that resembles real life navigation apps";
     }

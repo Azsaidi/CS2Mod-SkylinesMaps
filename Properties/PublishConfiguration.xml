@@ -26,6 +26,7 @@ The mod adds a new layer to the vanilla Traffic infoview, showing the actual liv
 - Live Congestion mode inside the existing Traffic infoview
 - Traffic flow graph is now useful and reflect the live congestion percentage every 15 ingame minutes.
 - City wide live congestion readout under the graph
+- 24 hour average congestion percentage
 - Different colour palettes
 - Ability to adjust values and fine tine tune how traffic gets decided to be congested
 - Keyboard shortcut to open the traffic infoview directly, Ctrl+T by default
@@ -65,7 +66,7 @@ I would like to declare that this mod was made with the assistance of AI, partic
     <ForumLink Value="https://forum.paradoxplaza.com/forum/threads/skylines-maps.1940387/" />
 
     <!-- Version of the mod.  Copied from assembly Version. -->
-    <ModVersion Value="0.9.1" />
+    <ModVersion Value="0.9.2" />
 
     <!-- Recommended version of the base game to use the mod. -->
     <GameVersion Value="1.*" />
@@ -79,9 +80,7 @@ I would like to declare that this mod was made with the assistance of AI, partic
 
     <!-- Change log.  Copied from ChangeLog.md file.  Supports minimal markdown subset. -->
     <ChangeLog>
-- The city wide traffic percentage is now calculated using road importance, higher laned roads have a bigger effect on the percentage. Which should improve the abnormally high traffic percentages shown before and show a more accurate reflection.
-
-- Live traffic flow now feeds the vanilla traffic flow graph (Will need a full 24 ingame hour simulation to populate the graph).
+- Added a 24 hour average percentage from the live congestion percentage data.
 </ChangeLog>
 
     <!-- External links.  Can be set multiple times. -->

@@ -41,6 +41,9 @@ namespace SkylinesMaps
                 { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.ShowCityTraffic)), "Show city traffic readout" },
                 { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.ShowCityTraffic)), "Shows the city wide average above the map legend in the traffic panel." },
 
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.DetailedFlowChart)), "Detailed traffic flow chart" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.DetailedFlowChart)), "Draws the traffic flow graph from this mod's own readings, one every 15 in-game minutes, instead of the base game's four six-hour averages. Turn it off to get the base game graph back. Readings keep being recorded and saved either way, so the detailed chart still shows a full day if you turn it back on." },
+
                 { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.MinimumTraffic)), "Minimum traffic" },
                 { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.MinimumTraffic)), "How many vehicles per 100 m of road are needed before congestion is shown at full strength. Raise it if a couple of slow cars turn a whole road red." },
 

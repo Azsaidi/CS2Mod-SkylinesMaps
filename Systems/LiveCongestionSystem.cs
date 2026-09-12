@@ -408,6 +408,9 @@ namespace SkylinesMaps.Systems
 
         public static float CityFlowPercent { get; private set; } = 100f;
 
+        /// Mean of the recorded day of readings, so the last 24 in-game hours of CityFlowPercent.
+        public static float CityFlowAverage { get; private set; } = 100f;
+
         public static float[] FlowHistory { get; private set; }
 
         private CongestionInfomodeSystem m_InfomodeSystem;
@@ -430,6 +433,9 @@ namespace SkylinesMaps.Systems
 
         private Game.Simulation.TimeSystem m_TimeSystem;
         private float[] m_History;
+
+        /// Running total of m_History, kept in step with it so the daily mean costs nothing to read.
+        private double m_HistorySum;
 
         protected override void OnCreate()
         {
@@ -533,6 +539,8 @@ namespace SkylinesMaps.Systems
             }
 
             FlowHistory = count == kHistorySlots ? m_History : null;
+
+            RecomputeHistorySum();
         }
 
         public void SetDefaults(Context context)
@@ -543,6 +551,8 @@ namespace SkylinesMaps.Systems
 
         private void Clear()
         {
+            m_HistorySum = 0d;
+
             if (m_History == null)
             {
                 m_History = new float[kHistorySlots];
@@ -553,6 +563,21 @@ namespace SkylinesMaps.Systems
             {
                 m_History[i] = 0f;
             }
+        }
+
+        private void RecomputeHistorySum()
+        {
+            double sum = 0d;
+
+            if (m_History != null)
+            {
+                for (int i = 0; i < kHistorySlots; i++)
+                {
+                    sum += m_History[i];
+                }
+            }
+
+            m_HistorySum = sum;
         }
 
         private void RecordHistory()
@@ -571,9 +596,11 @@ namespace SkylinesMaps.Systems
                     m_History[i] = m_CityFlowSmoothed;
                 }
 
+                m_HistorySum = (double)m_CityFlowSmoothed * kHistorySlots;
                 FlowHistory = m_History;
             }
 
+            m_HistorySum += m_CityFlowSmoothed - m_History[slot];
             m_History[slot] = m_CityFlowSmoothed;
         }
 
@@ -598,14 +625,18 @@ namespace SkylinesMaps.Systems
                     : target;
                 m_CityFlowPrimed = true;
 
+                RecordHistory();
+
                 m_CityFlowTimer += delta;
                 if (m_CityFlowTimer >= kCityFlowInterval)
                 {
                     m_CityFlowTimer = 0f;
                     CityFlowPercent = m_CityFlowSmoothed;
-                }
 
-                RecordHistory();
+                    CityFlowAverage = FlowHistory != null
+                        ? (float)(m_HistorySum / kHistorySlots)
+                        : m_CityFlowSmoothed;
+                }
             }
 
             ModSettings settings = Mod.Settings;
