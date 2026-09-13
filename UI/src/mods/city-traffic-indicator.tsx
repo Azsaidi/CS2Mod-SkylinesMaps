@@ -56,11 +56,6 @@ const panelStyle: React.CSSProperties = {
     pointerEvents: "auto",
 };
 
-// The title and the percentage are different sizes, so anything that lines up their boxes
-// (align-items baseline or center) lands the glyphs by font metrics and they disagree. Both
-// spans instead get the same height and a line height to match it: a single line then centres
-// itself in its own box, and because the two boxes are the same height the two texts end up on
-// the same centre line. Needs no flex behaviour, just line height.
 const kRowHeight = "22rem";
 
 const kRowTextStyle: React.CSSProperties = {
@@ -75,10 +70,6 @@ const headerStyle: React.CSSProperties = {
     marginBottom: "6rem",
 };
 
-// Copied from the game's own InfoviewPanelLabel, the component that draws TRAFFIC FLOW and
-// MAP LEGEND in this panel: .labels_L7Q sets the size and colour, .left_Lgw the case. The font
-// size is a variable rather than a fixed rem so it follows the game's font scale. Only the line
-// height differs from vanilla, see kRowTextStyle.
 const titleStyle: React.CSSProperties = {
     ...kRowTextStyle,
     fontSize: "var(--fontSizeS)",
@@ -108,7 +99,6 @@ const markerStyle: React.CSSProperties = {
     borderRadius: "2rem",
     background: "#ffffff",
     boxShadow: "0 0 4rem rgba(0, 0, 0, 0.8)",
-    // The value is only republished every few seconds, so glide rather than teleport.
     transition: "left 0.8s ease-out",
 };
 
@@ -120,8 +110,6 @@ const scaleStyle: React.CSSProperties = {
     opacity: 0.85,
 };
 
-// The header row again, so the label and figure line up under CITY TRAFFIC and its percentage.
-// Only the spacing differs: a hairline above rather than a gap below.
 const averageStyle: React.CSSProperties = {
     ...headerStyle,
     marginBottom: 0,

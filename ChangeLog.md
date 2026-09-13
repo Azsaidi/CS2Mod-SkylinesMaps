@@ -1,1 +1,3 @@
-- Added a new fine tuning option to adjust how congestion is considered at junctions and roundabouts.
+- New mod thumbnail
+- Fixed a bug where the percentage would rise unnaturally on startup due when using congestion factor.
+- New feature: Added a new real life satnav like feature that allows users to see how long a journey would take a cim between two points on the map.

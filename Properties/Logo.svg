@@ -13,9 +13,9 @@
     </clipPath>
 
     <linearGradient id="pinFace" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#34373C"/>
-      <stop offset="0.42" stop-color="#17181A"/>
-      <stop offset="1" stop-color="#050506"/>
+      <stop offset="0" stop-color="#F26B5E"/>
+      <stop offset="0.42" stop-color="#EA4335"/>
+      <stop offset="1" stop-color="#C5221F"/>
     </linearGradient>
     <filter id="pinShadow" x="-30%" y="-25%" width="175%" height="185%" color-interpolation-filters="sRGB">
       <feDropShadow dx="12" dy="18" stdDeviation="12" flood-color="#000000" flood-opacity="0.32"/>
@@ -145,16 +145,25 @@
     <ellipse cx="266" cy="304" rx="54" ry="12" fill="#000000" opacity="0.12"
       filter="url(#mapContactShadow)" clip-path="url(#mapDiamondScreen)"/>
 
+    <g transform="matrix(0.46875 0.234375 -0.46875 0.234375 256 176)">
+      <path d="M166 470 V346 H346 V256" fill="none" stroke="#4285F4" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="166" cy="470" r="9.5" fill="#FFFFFF"/>
+      <circle cx="166" cy="470" r="6.84" fill="#4285F4"/>
+      <circle cx="346" cy="256" r="9.5" fill="#FFFFFF"/>
+      <circle cx="346" cy="256" r="6.84" fill="#EA4335"/>
+    </g>
+
     <!--
-      Black location pin based on the supplied SVG. It is a single uninterrupted solid path,
-      with the CS2 mark drawn directly over the black fill.
+      Red location pin based on the supplied SVG. It is a single uninterrupted solid path,
+      with the CS2 mark drawn over its dark red centre.
     -->
     <g transform="translate(126 36) scale(0.5078125)" filter="url(#pinShadow)">
-      <path fill="url(#pinFace)" stroke="#050506" stroke-width="4" d="M87.084,192c-0.456-5.272-0.688-10.6-0.688-16C86.404,78.8,162.34,0,256.004,0s169.6,78.8,169.6,176c0,5.392-0.232,10.728-0.688,16h0.688c0,96.184-169.6,320-169.6,320s-169.6-223.288-169.6-320H87.084z"/>
+      <path fill="url(#pinFace)" stroke="#9C1F16" stroke-width="4" d="M86.4,176C86.4,78.8,162.34,0,256,0S425.6,78.8,425.6,176C425.6,288.184,256,512,256,512S86.4,288.184,86.4,176Z"/>
+      <circle cx="256" cy="176" r="114" fill="#A50E0E"/>
     </g>
 
     <!-- Cities: Skylines II mark, centered directly on the pin. -->
-    <g transform="translate(213.205 69.25) scale(0.159616) translate(-148.5 -208.37)" fill="#FFFFFF">
+    <g transform="translate(213.205 77.4) scale(0.159616) translate(-148.5 -208.37)" fill="#FFFFFF">
       <path d="M 175.12 340.11 C 250.77 296.22 326.41 252.30 402.05 208.41 C 401.55 251.82 402.08 295.26 401.79 338.67 C 354.75 365.63 307.87 392.87 260.88 419.90 C 260.84 452.61 260.87 485.31 260.86 518.02 C 260.96 534.21 260.61 550.40 261.00 566.58 C 228.80 547.61 196.54 528.75 164.36 509.73 C 155.03 504.11 149.66 493.58 148.56 482.98 C 148.56 449.00 148.57 415.02 148.55 381.04 C 149.34 370.52 152.94 359.97 159.93 351.91 C 164.09 346.95 169.46 343.18 175.12 340.11 Z"/>
       <path d="M 431.66 208.37 C 508.66 252.84 585.83 296.99 662.86 341.39 C 675.84 349.20 684.32 363.84 684.71 378.98 C 684.79 413.99 684.60 449.01 684.80 484.02 C 616.65 444.94 548.58 405.71 480.45 366.60 C 464.20 357.10 447.70 348.02 431.59 338.31 C 431.85 295.00 431.70 251.68 431.66 208.37 Z"/>
       <path d="M 572.72 451.55 C 604.44 470.44 636.38 488.97 668.16 507.77 C 678.12 513.35 684.64 524.51 684.72 535.92 C 684.71 569.61 684.72 603.31 684.72 637.01 C 684.67 652.36 676.22 667.35 663.13 675.36 C 586.00 720.24 508.75 764.87 431.66 809.81 C 431.76 766.46 431.75 723.12 431.66 679.78 C 478.65 652.37 525.98 625.50 572.92 598.03 C 572.43 549.21 573.04 500.38 572.72 451.55 Z"/>

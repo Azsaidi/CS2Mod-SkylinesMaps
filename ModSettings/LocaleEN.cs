@@ -22,6 +22,7 @@ namespace SkylinesMaps
                 { m_Setting.GetOptionGroupLocaleID(ModSettings.kAppearanceGroup), "Appearance" },
                 { m_Setting.GetOptionGroupLocaleID(ModSettings.kThresholdGroup), "Thresholds" },
                 { m_Setting.GetOptionGroupLocaleID(ModSettings.kJunctionGroup), "Junctions" },
+                { m_Setting.GetOptionGroupLocaleID(ModSettings.kJourneyGroup), "Journey planner" },
                 { m_Setting.GetOptionGroupLocaleID(ModSettings.kKeybindingGroup), "Key bindings" },
                 { m_Setting.GetOptionGroupLocaleID(ModSettings.kAboutGroup), "About" },
 
@@ -74,6 +75,32 @@ namespace SkylinesMaps
 
                 { m_Setting.GetBindingKeyLocaleID(Mod.kToggleInfoviewActionName), "Toggle key" },
                 { m_Setting.GetBindingMapLocaleID(), ModAssemblyInfo.Title },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.EnableJourneyPlanner)), "Enable journey planner" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.EnableJourneyPlanner)), "Adds a button to building and road info panels for planning a driving route between two places, with live traffic and alternative routes. Turn it off to hide the button and clear any journey being shown." },
+
+                { Systems.JourneyTooltipSystem.kSelectDestinationLocaleID, "Select the destination building or road for this journey" },
+                { Systems.JourneyTooltipSystem.kSearchingLocaleID, "Finding the best route..." },
+                { Systems.JourneyTooltipSystem.kFailedLocaleID, "No driving route found between these locations" },
+
+                { "SkylinesMaps.JourneyPlanner.START_TITLE", "Plan a journey" },
+                { "SkylinesMaps.JourneyPlanner.START_DESCRIPTION", "Start a journey from here, then select the building or road you want to go to." },
+                { "SkylinesMaps.JourneyPlanner.CANCEL_TITLE", "Cancel journey" },
+                { "SkylinesMaps.JourneyPlanner.CANCEL_DESCRIPTION", "Stop choosing a destination for this journey." },
+                { "SkylinesMaps.JourneyPlanner.END_TITLE", "End journey here" },
+                { "SkylinesMaps.JourneyPlanner.END_DESCRIPTION", "Find the best driving route to here, based on travel time and live traffic." },
+                { "SkylinesMaps.JourneyPlanner.CLEAR_TITLE", "Clear route" },
+                { "SkylinesMaps.JourneyPlanner.CLEAR_DESCRIPTION", "Remove this journey's route from the map." },
+                { "SkylinesMaps.JourneyPlanner.CARD_TITLE", "Journey" },
+                { "SkylinesMaps.JourneyPlanner.SEARCHING_ROUTES", "Finding routes..." },
+                { "SkylinesMaps.JourneyPlanner.BEST", "Best route" },
+                { "SkylinesMaps.JourneyPlanner.SIMILAR", "Similar time" },
+                { "SkylinesMaps.JourneyPlanner.VIA", "via" },
+                { "SkylinesMaps.JourneyPlanner.REAL_TIME", "real time" },
+                { "SkylinesMaps.JourneyPlanner.KIND_FASTEST", "Fastest" },
+                { "SkylinesMaps.JourneyPlanner.KIND_IGNORE_TRAFFIC", "Usual route" },
+                { "SkylinesMaps.JourneyPlanner.KIND_FEWER_TURNS", "Fewer turns" },
+                { "SkylinesMaps.JourneyPlanner.KIND_SHORTEST", "Shortest" },
 
                 // Infomode shown in the vanilla Traffic infoview.
                 { Systems.CongestionInfomodeSystem.kInfomodeLocaleID, "Live Congestion" },

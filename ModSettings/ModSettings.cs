@@ -8,8 +8,8 @@ using UnityEngine;
 namespace SkylinesMaps
 {
     [FileLocation("ModsSettings/" + nameof(SkylinesMaps) + "/" + nameof(SkylinesMaps))]
-    [SettingsUIGroupOrder(kAppearanceGroup, kThresholdGroup, kJunctionGroup, kKeybindingGroup, kAboutGroup)]
-    [SettingsUIShowGroupName(kAppearanceGroup, kThresholdGroup, kJunctionGroup, kKeybindingGroup, kAboutGroup)]
+    [SettingsUIGroupOrder(kAppearanceGroup, kThresholdGroup, kJunctionGroup, kJourneyGroup, kKeybindingGroup, kAboutGroup)]
+    [SettingsUIShowGroupName(kAppearanceGroup, kThresholdGroup, kJunctionGroup, kJourneyGroup, kKeybindingGroup, kAboutGroup)]
     [SettingsUIKeyboardAction(Mod.kToggleInfoviewActionName, ActionType.Button, usages: new string[] { Usages.kDefaultUsage })]
     public class ModSettings : ModSetting
     {
@@ -18,6 +18,7 @@ namespace SkylinesMaps
         public const string kAppearanceGroup = "Appearance";
         public const string kThresholdGroup = "Thresholds";
         public const string kJunctionGroup = "Junctions";
+        public const string kJourneyGroup = "JourneyPlanner";
         public const string kKeybindingGroup = "KeyBinding";
         public const string kAboutGroup = "About";
 
@@ -68,6 +69,9 @@ namespace SkylinesMaps
         [SettingsUISlider(min = 0, max = 300, step = 10, scalarMultiplier = 1, unit = Unit.kPercentage)]
         [SettingsUISection(kSection, kJunctionGroup)]
         public int RoundaboutJamFactor { get; set; } = 100;
+
+        [SettingsUISection(kSection, kJourneyGroup)]
+        public bool EnableJourneyPlanner { get; set; } = true;
 
         [SettingsUISection(kSection, kAboutGroup)]
         public string Version => ModAssemblyInfo.Version;
@@ -146,6 +150,7 @@ namespace SkylinesMaps
             FreeFlowingAbove = 75;
             JunctionJamFactor = 100;
             RoundaboutJamFactor = 100;
+            EnableJourneyPlanner = true;
         }
     }
 }

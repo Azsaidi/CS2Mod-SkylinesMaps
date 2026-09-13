@@ -80,6 +80,7 @@ namespace SkylinesMaps.Systems
             public float m_WaitStep;
             public float m_JunctionWait;
             public float m_RoundaboutWait;
+            public bool m_SeedWaits;
 
             public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)
             {
@@ -127,7 +128,10 @@ namespace SkylinesMaps.Systems
                     bool hasEdgeLane = m_EdgeLaneData.TryGetComponent(lane, out EdgeLane edgeLane);
 
                     float tolerance = GetWaitTolerance(onNode, roundaboutLane, owner.m_Owner, edge, hasEdgeLane, edgeLane);
-                    value = ApplyWait(vehicles[i], ratio, value, tolerance);
+                    float seed = m_SeedWaits
+                        ? math.max(0f, currentLanes[i].m_Duration - currentLanes[i].m_Distance / reference)
+                        : 0f;
+                    value = ApplyWait(vehicles[i], ratio, value, tolerance, seed);
 
                     float2 weights = new float2(1f, 1f);
                     if (hasEdgeLane)
@@ -148,7 +152,7 @@ namespace SkylinesMaps.Systems
                 }
             }
 
-            private float ApplyWait(Entity vehicle, float ratio, float value, float tolerance)
+            private float ApplyWait(Entity vehicle, float ratio, float value, float tolerance, float seed)
             {
                 // 1 when stopped, 0 from kWaitRatio up.
                 float waiting = math.saturate(1f - ratio / kWaitRatio);
@@ -157,7 +161,10 @@ namespace SkylinesMaps.Systems
                     return value;
                 }
 
-                m_PreviousWaits.TryGetValue(vehicle, out float waited);
+                if (!m_PreviousWaits.TryGetValue(vehicle, out float waited))
+                {
+                    waited = seed;
+                }
                 waited += m_WaitStep * waiting;
                 m_NextWaits.TryAdd(vehicle, waited);
 
@@ -494,6 +501,13 @@ namespace SkylinesMaps.Systems
 
         public static float[] FlowHistory { get; private set; }
 
+        public bool TryGetFlow(Entity road, out float2 flow)
+        {
+            m_LastHandle.Complete();
+            flow = default;
+            return m_Smoothed.IsCreated && m_Smoothed.TryGetValue(road, out flow);
+        }
+
         private CongestionInfomodeSystem m_InfomodeSystem;
         private Game.Simulation.SimulationSystem m_SimulationSystem;
         private EntityQuery m_VehicleQuery;
@@ -513,6 +527,7 @@ namespace SkylinesMaps.Systems
         private NativeParallelHashMap<Entity, float> m_NextWaits;
         private bool m_WaitsPending;
         private uint m_LastWaitFrame;
+        private bool m_ResetWaits = true;
 
         /// Runs live behind the scenes. CityFlowPercent only catches up to it every few seconds.
         private float m_CityFlowSmoothed = 100f;
@@ -644,12 +659,14 @@ namespace SkylinesMaps.Systems
             FlowHistory = count == kHistorySlots ? m_History : null;
 
             RecomputeHistorySum();
+            m_ResetWaits = true;
         }
 
         public void SetDefaults(Context context)
         {
             Clear();
             FlowHistory = null;
+            m_ResetWaits = true;
         }
 
         private void Clear()
@@ -719,6 +736,7 @@ namespace SkylinesMaps.Systems
             else if (frame < m_LastWaitFrame)
             {
                 m_Waits.Clear();
+                m_ResetWaits = true;
             }
 
             m_LastWaitFrame = frame;
@@ -817,6 +835,14 @@ namespace SkylinesMaps.Systems
                     m_NextWaits.Capacity = vehicleCount;
                 }
 
+                bool seedWaits = m_ResetWaits;
+                if (seedWaits)
+                {
+                    m_Waits.Clear();
+                    m_LastWaitFrame = 0;
+                    m_ResetWaits = false;
+                }
+
 
                 if (m_Smoothed.Count() > edgeCount * 2)
                 {
@@ -848,6 +874,7 @@ namespace SkylinesMaps.Systems
                 sampleJob.m_NextWaits = m_NextWaits.AsParallelWriter();
                 sampleJob.m_Samples = m_Samples.AsParallelWriter();
                 sampleJob.m_WaitStep = GetWaitStep();
+                sampleJob.m_SeedWaits = seedWaits;
                 sampleJob.m_JunctionWait = kJunctionBaseWait * math.max(0, settings.JunctionJamFactor) / 100f;
                 sampleJob.m_RoundaboutWait = kRoundaboutBaseWait * math.max(0, settings.RoundaboutJamFactor) / 100f;
 
