@@ -22,6 +22,7 @@ namespace SkylinesMaps.Systems
 
             AddBinding(new TriggerBinding(CityFlowUISystem.kGroup, "journeyAction", m_PlannerSystem.QueueAction));
             AddBinding(new TriggerBinding<int>(CityFlowUISystem.kGroup, "selectJourneyRoute", m_PlannerSystem.QueueRouteSelection));
+            AddBinding(new TriggerBinding<int>(CityFlowUISystem.kGroup, "selectJourneyMode", m_PlannerSystem.QueueModeSelection));
             AddBinding(new TriggerBinding(CityFlowUISystem.kGroup, "clearJourney", m_PlannerSystem.QueueClear));
         }
 

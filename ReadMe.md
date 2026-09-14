@@ -1,6 +1,6 @@
 # Skylines Maps
 
-Tired of the useless traffic infoview we had to deal with since the launch of CS2? This mod provides a live traffic congestion infoview that resembles real life navigation apps and a journey system to know how long a journey would take between 2 points
+Tired of the useless traffic infoview we had to deal with since the launch of CS2? This mod provides a live traffic congestion infoview that resembles real life navigation apps and a journey mode to know how long a journey would take between 2 points
 
 The mod adds a new layer to the vanilla Traffic infoview, showing the actual live congestion on the roads just like in CS:1 and more
 
@@ -11,11 +11,10 @@ The mod adds a new layer to the vanilla Traffic infoview, showing the actual liv
 - Traffic flow graph is now useful and reflect the live congestion percentage every 15 ingame minutes
 - City wide live congestion readout under the graph
 - 24 hour average congestion percentage
-- Journey simulation mode that allows you to see how long a journey would take a cim between two points on the map
+- Journey mode that allows you to see how long a journey would take a cim between two points on the map including driving, walking, cycling and public transit
 - Different colour palettes
 - Ability to adjust values and fine tine tune how traffic gets decided to be congested
 - Keyboard shortcut to open the traffic infoview directly, Ctrl+T by default
-
 
 ## Savegame Compatibility
 

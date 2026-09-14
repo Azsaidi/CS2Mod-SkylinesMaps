@@ -73,6 +73,9 @@ namespace SkylinesMaps
         [SettingsUISection(kSection, kJourneyGroup)]
         public bool EnableJourneyPlanner { get; set; } = true;
 
+        [SettingsUISection(kSection, kJourneyGroup)]
+        public bool DisableJourneyCameraZoom { get; set; } = false;
+
         [SettingsUISection(kSection, kAboutGroup)]
         public string Version => ModAssemblyInfo.Version;
 
@@ -151,6 +154,7 @@ namespace SkylinesMaps
             JunctionJamFactor = 100;
             RoundaboutJamFactor = 100;
             EnableJourneyPlanner = true;
+            DisableJourneyCameraZoom = false;
         }
     }
 }

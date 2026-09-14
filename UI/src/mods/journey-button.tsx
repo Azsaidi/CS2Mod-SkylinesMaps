@@ -55,7 +55,7 @@ const kContent: Partial<Record<ButtonMode, ButtonContent>> = {
         titleId: "SkylinesMaps.JourneyPlanner.END_TITLE",
         title: "End journey here",
         descriptionId: "SkylinesMaps.JourneyPlanner.END_DESCRIPTION",
-        description: "Find the best driving route to here, based on travel time and live traffic.",
+        description: "Find the best routes to here by car, on foot, by bike and by public transport, based on travel time and live traffic.",
     },
     [ButtonMode.Clear]: {
         icon: kCloseIcon,

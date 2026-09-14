@@ -1,3 +1,5 @@
-- New mod thumbnail
-- Fixed a bug where the percentage would rise unnaturally on startup due when using congestion factor.
-- New feature: Added a new real life satnav like feature that allows users to see how long a journey would take a cim between two points on the map.
+- New option to disable automatic zooming when changing routes.
+- Fixed icons loading extremely slowly.
+- Fixed routing issues to external buildings.
+- Added support for different modes of transport, including walking, cycling, and public transit.
+- Improved route explainations, for example "Fastest", "Cheapest" etc.
