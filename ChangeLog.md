@@ -1,5 +1,5 @@
-- New option to disable automatic zooming when changing routes.
-- Fixed icons loading extremely slowly.
-- Fixed routing issues to external buildings.
-- Added support for different modes of transport, including walking, cycling, and public transit.
-- Improved route explainations, for example "Fastest", "Cheapest" etc.
+- Compatibility with 1.6.2f1
+- Alternative journeys routes are now shown as a grey line
+- Improved bike routing
+- Removed ingame assemblies shipping with the mod
+- Added ships to the public transit routing

@@ -173,6 +173,10 @@ namespace SkylinesMaps.Systems
 
         private const float kBikeParkingRadius = 150f;
 
+        private const float kBikeRuleWeight = 1f;
+
+        private const float kBikeLaneWeight = 1f;
+
         private const string kReasonCar = "SkylinesMaps.JourneyPlanner.REASON_CAR";
 
         private const string kReasonWalk = "SkylinesMaps.JourneyPlanner.REASON_WALK";
@@ -205,6 +209,8 @@ namespace SkylinesMaps.Systems
         private static readonly Color32 kFallbackSlowColor = new Color32(251, 188, 4, 255);
 
         private static readonly Color32 kFallbackJammedColor = new Color32(179, 20, 18, 255);
+
+        private static readonly Color32 kAlternateColor = new Color32(140, 146, 153, 255);
 
         private ToolSystem m_ToolSystem;
         private PathfindSetupSystem m_PathfindSetupSystem;
@@ -264,6 +270,7 @@ namespace SkylinesMaps.Systems
         private bool m_HasPendingClear;
 
         private readonly List<Entity> m_Routes = new List<Entity>();
+        private readonly HashSet<Entity> m_AlternateRoutes = new HashSet<Entity>();
         private readonly List<Entity> m_Segments = new List<Entity>();
         private readonly List<Entity> m_Holders = new List<Entity>();
         private readonly List<Entity> m_PendingDeletes = new List<Entity>();
@@ -283,6 +290,8 @@ namespace SkylinesMaps.Systems
         public int planVersion { get; private set; }
 
         public IReadOnlyList<Entity> routeEntities => m_Routes;
+
+        public bool IsAlternateRoute(Entity route) => m_AlternateRoutes.Contains(route);
 
         protected override void OnCreate()
         {
@@ -346,6 +355,7 @@ namespace SkylinesMaps.Systems
             m_Routes.Clear();
             m_Segments.Clear();
             m_Holders.Clear();
+            m_AlternateRoutes.Clear();
             m_PendingDeletes.Clear();
             m_Bands.Clear();
             foreach (List<RouteOption> routes in m_ModeRoutes)
@@ -1231,6 +1241,7 @@ namespace SkylinesMaps.Systems
                 parameters.m_Methods |= PathMethod.Bicycle | PathMethod.BicycleParking;
                 parameters.m_IgnoredRules = Game.Vehicles.VehicleUtils.GetIgnoredPathfindRulesBicycleDefaults();
                 parameters.m_ParkingSize = new float2(1f, 2f);
+                parameters.m_Weights = new PathfindWeights(1f, kBikeRuleWeight, 0f, kBikeLaneWeight);
 
                 if (fallback)
                 {
@@ -2021,6 +2032,7 @@ namespace SkylinesMaps.Systems
                 case Game.Prefabs.TransportType.Subway:
                 case Game.Prefabs.TransportType.Train:
                 case Game.Prefabs.TransportType.Ferry:
+                case Game.Prefabs.TransportType.Ship:
                     return true;
 
                 default:
@@ -2354,6 +2366,7 @@ namespace SkylinesMaps.Systems
                     m_Bands.AddRange(bands);
                     BuildDisplay(path);
                     AddAccessDisplay(false);
+                    AddAlternateDisplay(option, path);
                 }
             }
             else if (changed)
@@ -2365,6 +2378,8 @@ namespace SkylinesMaps.Systems
                 {
                     AddAccessDisplay(true);
                 }
+
+                AddAlternateDisplay(option, path);
             }
 
             m_DisplayedSelection = m_Selected;
@@ -2618,6 +2633,113 @@ namespace SkylinesMaps.Systems
             return true;
         }
 
+        private void AddAlternateDisplay(RouteOption selected, NativeArray<PathElement> selectedPath)
+        {
+            List<RouteOption> routes = CurrentRoutes;
+            if (routes.Count < 2 || m_RouteConfigQuery.IsEmptyIgnoreFilter)
+            {
+                return;
+            }
+
+            RouteConfigurationData config = m_RouteConfigQuery.GetSingleton<RouteConfigurationData>();
+
+            HashSet<Entity> shared = new HashSet<Entity>();
+            foreach (PathElement element in ExpandPath(selectedPath))
+            {
+                shared.Add(GetShareKey(element.m_Target));
+            }
+
+            foreach (RouteOption option in routes)
+            {
+                if (option == selected || !EntityManager.Exists(option.m_Request))
+                {
+                    continue;
+                }
+
+                NativeArray<PathElement> path = EntityManager.GetBuffer<PathElement>(option.m_Request).ToNativeArray(Allocator.Temp);
+                List<PathElement> lanes = ExpandPath(path);
+                path.Dispose();
+
+                List<PathElement> run = new List<PathElement>();
+                bool runWalking = false;
+                bool hasShared = false;
+                PathElement lastShared = default;
+
+                foreach (PathElement lane in lanes)
+                {
+                    if (shared.Contains(GetShareKey(lane.m_Target)))
+                    {
+                        if (run.Count > 0)
+                        {
+                            if (!runWalking && TryGetOverlap(lane, false, out PathElement tail))
+                            {
+                                run.Add(tail);
+                            }
+
+                            AddAlternateSegment(config, run, runWalking);
+                            run = new List<PathElement>();
+                        }
+
+                        lastShared = lane;
+                        hasShared = true;
+                        continue;
+                    }
+
+                    bool walking = IsWalkingLane(lane.m_Target);
+                    if (run.Count > 0 && walking != runWalking)
+                    {
+                        AddAlternateSegment(config, run, runWalking);
+                        run = new List<PathElement>();
+                        hasShared = false;
+                    }
+
+                    if (run.Count == 0)
+                    {
+                        runWalking = walking;
+                        if (hasShared && !walking && TryGetOverlap(lastShared, true, out PathElement lead))
+                        {
+                            run.Add(lead);
+                        }
+                    }
+
+                    run.Add(lane);
+                }
+
+                if (run.Count > 0)
+                {
+                    AddAlternateSegment(config, run, runWalking);
+                }
+            }
+        }
+
+        private void AddAlternateSegment(RouteConfigurationData config, List<PathElement> lanes, bool walking)
+        {
+            Entity prefab = walking ? config.m_HumanPathVisualization : config.m_CarPathVisualization;
+            AddDisplaySegment(prefab, kAlternateColor, lanes, walking, false);
+        }
+
+        private bool IsWalkingLane(Entity lane)
+        {
+            if (EntityManager.HasComponent<Game.Net.PedestrianLane>(lane))
+            {
+                return true;
+            }
+
+            return EntityManager.HasComponent<Game.Net.ConnectionLane>(lane)
+                && (EntityManager.GetComponentData<Game.Net.ConnectionLane>(lane).m_Flags & Game.Net.ConnectionLaneFlags.Pedestrian) != 0;
+        }
+
+        private Entity GetShareKey(Entity lane)
+        {
+            if (!EntityManager.HasComponent<Owner>(lane))
+            {
+                return lane;
+            }
+
+            Entity owner = EntityManager.GetComponentData<Owner>(lane).m_Owner;
+            return EntityManager.HasComponent<Game.Net.Edge>(owner) ? owner : lane;
+        }
+
         private void BuildModeDisplay(RouteOption option)
         {
             if (m_RouteConfigQuery.IsEmptyIgnoreFilter)
@@ -2650,7 +2772,7 @@ namespace SkylinesMaps.Systems
             }
         }
 
-        private void AddDisplaySegment(Entity prefab, Color32 colour, List<PathElement> elements, bool walking)
+        private void AddDisplaySegment(Entity prefab, Color32 colour, List<PathElement> elements, bool walking, bool highlighted = true)
         {
             if (prefab == Entity.Null || !EntityManager.HasComponent<RouteData>(prefab))
             {
@@ -2672,7 +2794,7 @@ namespace SkylinesMaps.Systems
             }
 
             RouteData routeData = EntityManager.GetComponentData<RouteData>(prefab);
-            Entity route = CreateRoute(prefab, routeData, colour);
+            Entity route = CreateRoute(prefab, routeData, colour, highlighted);
 
             Entity holder;
             if (walking)
@@ -2710,12 +2832,19 @@ namespace SkylinesMaps.Systems
             m_Segments.Add(segmentEntity);
         }
 
-        private Entity CreateRoute(Entity prefab, RouteData routeData, Color32 colour)
+        private Entity CreateRoute(Entity prefab, RouteData routeData, Color32 colour, bool highlighted = true)
         {
             Entity route = EntityManager.CreateEntity(routeData.m_RouteArchetype);
             EntityManager.SetComponentData(route, new PrefabRef(prefab));
             EntityManager.SetComponentData(route, new Game.Routes.Color(colour));
-            EntityManager.AddComponent<Highlighted>(route);
+            if (highlighted)
+            {
+                EntityManager.AddComponent<Highlighted>(route);
+            }
+            else
+            {
+                m_AlternateRoutes.Add(route);
+            }
             m_Routes.Add(route);
             return route;
         }
@@ -2877,6 +3006,7 @@ namespace SkylinesMaps.Systems
             }
 
             m_Routes.Clear();
+            m_AlternateRoutes.Clear();
             m_Segments.Clear();
             m_Holders.Clear();
 

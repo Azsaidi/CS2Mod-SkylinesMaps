@@ -50,16 +50,15 @@ I would like to declare that this mod was made with the assistance of AI, partic
     <Thumbnail Value="Properties/Thumbnail.png" />
 
     <!-- Screenshot.  Copied from Screenshots folder.  Include no spaces in file names.  Max file size is 2.1MB.  Can be set multiple times. -->
-    <Screenshot Value="Properties\Screenshots\10modview.png" />
+    <Screenshot Value="Properties\Screenshots\10vanillaview.png" />
+    <Screenshot Value="Properties\Screenshots\11modview.png" />
     <Screenshot Value="Properties\Screenshots\15journeys.png" />
     <Screenshot Value="Properties\Screenshots\16transport.png" />
     <Screenshot Value="Properties\Screenshots\17transport2.png" />
-    <Screenshot Value="Properties\Screenshots\1Thumbnail.png" />
     <Screenshot Value="Properties\Screenshots\20finetuneit.png" />
     <Screenshot Value="Properties\Screenshots\25livetraffic.png" />
     <Screenshot Value="Properties\Screenshots\30traffic1.png" />
     <Screenshot Value="Properties\Screenshots\35traffic2.png" />
-    <Screenshot Value="Properties\Screenshots\5vanillaview.png" />
 
 
     <!-- Tag.  Can be set multiple times. -->
@@ -69,7 +68,7 @@ I would like to declare that this mod was made with the assistance of AI, partic
     <ForumLink Value="https://forum.paradoxplaza.com/forum/threads/skylines-maps.1940387/" />
 
     <!-- Version of the mod.  Copied from assembly Version. -->
-    <ModVersion Value="1.1.0" />
+    <ModVersion Value="1.1.2" />
 
     <!-- Recommended version of the base game to use the mod. -->
     <GameVersion Value="1.*" />
@@ -83,11 +82,11 @@ I would like to declare that this mod was made with the assistance of AI, partic
 
     <!-- Change log.  Copied from ChangeLog.md file.  Supports minimal markdown subset. -->
     <ChangeLog>
-- New option to disable automatic zooming when changing routes.
-- Fixed icons loading extremely slowly.
-- Fixed routing issues to external buildings.
-- Added support for different modes of transport, including walking, cycling, and public transit.
-- Improved route explainations, for example "Fastest", "Cheapest" etc.
+- Compatibility with 1.6.2f1
+- Alternative journeys routes are now shown as a grey line
+- Improved bike routing
+- Removed ingame assemblies shipping with the mod
+- Added ships to the public transit routing
 </ChangeLog>
 
     <!-- External links.  Can be set multiple times. -->

@@ -29,6 +29,8 @@ namespace SkylinesMaps.Systems
 
         private const float kMaxRouteScale = 10f;
 
+        private const float kAlternateWidth = 0.85f;
+
         private static readonly Color kRingColor = Color.white;
 
         private static readonly Color kStartColor = new Color(0.259f, 0.522f, 0.957f, 1f);
@@ -120,6 +122,8 @@ namespace SkylinesMaps.Systems
                 routeData.m_SegmentLength * scale,
                 0f);
 
+            Vector4 alternateSize = new Vector4(size.x * kAlternateWidth, size.y * kAlternateWidth, size.z, 0f);
+
             for (int i = 0; i < routes.Count; i++)
             {
                 Entity route = routes[i];
@@ -137,7 +141,7 @@ namespace SkylinesMaps.Systems
                 object entry = managedData[index];
                 if (entry != null)
                 {
-                    m_SizeField.SetValue(entry, size);
+                    m_SizeField.SetValue(entry, m_PlannerSystem.IsAlternateRoute(route) ? alternateSize : size);
                 }
             }
         }

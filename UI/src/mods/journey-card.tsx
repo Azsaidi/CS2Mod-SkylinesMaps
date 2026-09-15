@@ -100,6 +100,7 @@ const kTransportIcons: Record<number, string> = {
     0: transitIcon,
     1: trainIcon,
     3: tramIcon,
+    4: ferryIcon,
     8: subwayIcon,
     11: ferryIcon,
 };
@@ -108,6 +109,7 @@ const kTransportNames: Record<number, string> = {
     0: "Bus",
     1: "Train",
     3: "Tram",
+    4: "Ship",
     8: "Subway",
     11: "Ferry",
 };

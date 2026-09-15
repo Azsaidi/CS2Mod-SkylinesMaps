@@ -6,7 +6,7 @@
 		<!--The file where mod information which is required for publishing mod on PDX mods are stored-->
 		<PublishConfigurationPath>Properties\PublishConfiguration.xml</PublishConfigurationPath>
 		<Title>Skylines Maps</Title>
-		<Version>1.1.0</Version>
+		<Version>1.1.2</Version>
 		<Description>A live traffic infoview that resembles real life navigation apps and a journey length mode</Description>
 		<Copyright>Copyright © 2026</Copyright>
 		<TreatWarningsAsErrors>True</TreatWarningsAsErrors>
@@ -52,6 +52,7 @@
 		</Reference>
 		<Reference Include="netstandard">
 		  <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Cities Skylines II\Cities2_Data\Managed\netstandard.dll</HintPath>
+		  <Private>false</Private>
 		</Reference>
 		<Reference Include="Unity.InputSystem">
 			<Private>false</Private>
