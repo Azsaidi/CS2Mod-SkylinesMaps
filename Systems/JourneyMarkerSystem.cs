@@ -45,6 +45,10 @@ namespace SkylinesMaps.Systems
         private FieldInfo m_SizeField;
         private JourneyMarkerRenderer m_Renderer;
 
+        private float m_ScaledZoom = float.NaN;
+        private int m_ScaledPlan = -1;
+        private bool m_ScalePending;
+
         protected override void OnCreate()
         {
             base.OnCreate();
@@ -100,6 +104,13 @@ namespace SkylinesMaps.Systems
             IReadOnlyList<Entity> routes = m_PlannerSystem.routeEntities;
             if (routes.Count == 0 || m_ManagedDataField == null || m_SizeField == null || m_RouteConfigQuery.IsEmptyIgnoreFilter)
             {
+                m_ScaledZoom = float.NaN;
+                return;
+            }
+
+            int plan = m_PlannerSystem.displayVersion;
+            if (!m_ScalePending && plan == m_ScaledPlan && zoom == m_ScaledZoom)
+            {
                 return;
             }
 
@@ -124,17 +135,21 @@ namespace SkylinesMaps.Systems
 
             Vector4 alternateSize = new Vector4(size.x * kAlternateWidth, size.y * kAlternateWidth, size.z, 0f);
 
+            bool pending = false;
+
             for (int i = 0; i < routes.Count; i++)
             {
                 Entity route = routes[i];
                 if (!EntityManager.Exists(route) || !EntityManager.HasComponent<RouteBufferIndex>(route))
                 {
+                    pending = true;
                     continue;
                 }
 
                 int index = EntityManager.GetComponentData<RouteBufferIndex>(route).m_Index;
                 if (index < 0 || index >= managedData.Count)
                 {
+                    pending = true;
                     continue;
                 }
 
@@ -143,7 +158,15 @@ namespace SkylinesMaps.Systems
                 {
                     m_SizeField.SetValue(entry, m_PlannerSystem.IsAlternateRoute(route) ? alternateSize : size);
                 }
+                else
+                {
+                    pending = true;
+                }
             }
+
+            m_ScaledZoom = zoom;
+            m_ScaledPlan = plan;
+            m_ScalePending = pending;
         }
     }
 }

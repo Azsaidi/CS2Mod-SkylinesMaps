@@ -16,6 +16,12 @@ The mod adds a new layer to the vanilla Traffic infoview, showing the actual liv
 - Ability to adjust values and fine tine tune how traffic gets decided to be congested
 - Keyboard shortcut to open the traffic infoview directly, Ctrl+T by default
 
+## How to Use
+
+Using the mod is really simple, just open the traffic infoview and you will see the new live congestion mode layer and readouts.
+
+For journey mode, you can click on any building or road segment, and select "Plan A Journey" from the info panel (next to the vanilla routes button). Next, select the destination and do the same thing but select the "End Journey Here" button. Thats it.
+
 ## Savegame Compatibility
 
 The mod is safe to remove any time to restore the vanilla implementation. I have tested the mod with almost 250 other mods and have not encountered any compatibility issues.

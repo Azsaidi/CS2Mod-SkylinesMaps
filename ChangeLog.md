@@ -1,5 +1,5 @@
-- Compatibility with 1.6.2f1
-- Alternative journeys routes are now shown as a grey line
-- Improved bike routing
-- Removed ingame assemblies shipping with the mod
-- Added ships to the public transit routing
+- Code refactoring and optimisation
+- Improved resource use and performance
+- Added option to change what time format (Ingame, Real life or Both) is shown in journey mode
+- Many UI improvements
+- Added ETA display in journey mode

@@ -18,6 +18,18 @@ namespace SkylinesMaps.Systems
             AddUpdateBinding(new GetterValueBinding<int>(
                 CityFlowUISystem.kGroup, "journeyButton", () => (int)m_PlannerSystem.GetButtonMode()));
 
+            AddUpdateBinding(new GetterValueBinding<bool>(
+                CityFlowUISystem.kGroup, "journeyStepAddresses",
+                () => Mod.Settings == null || Mod.Settings.ShowStepAddresses));
+
+            AddUpdateBinding(new GetterValueBinding<int>(
+                CityFlowUISystem.kGroup, "journeyTimes",
+                () => (int)(Mod.Settings != null ? Mod.Settings.JourneyTimes : ModSettings.TimeDisplay.RealAndGame)));
+
+            AddUpdateBinding(new GetterValueBinding<int>(
+                CityFlowUISystem.kGroup, "journeyArrivalClock",
+                () => (int)(Mod.Settings != null ? Mod.Settings.ArrivalClock : ModSettings.ClockFormat.MatchGame)));
+
             AddBinding(m_PlanBinding = new RawValueBinding(CityFlowUISystem.kGroup, "journeyPlan", m_PlannerSystem.WritePlan));
 
             AddBinding(new TriggerBinding(CityFlowUISystem.kGroup, "journeyAction", m_PlannerSystem.QueueAction));

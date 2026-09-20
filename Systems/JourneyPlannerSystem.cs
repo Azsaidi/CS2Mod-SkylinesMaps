@@ -72,11 +72,15 @@ namespace SkylinesMaps.Systems
             public string m_LineName = string.Empty;
             public string m_From = string.Empty;
             public string m_To = string.Empty;
+            public string m_FromShort = string.Empty;
+            public string m_ToShort = string.Empty;
             public int m_Stops;
             public Color32 m_Color;
             public int m_TransportType = -1;
             public int m_Price;
             public bool m_Open;
+            public Entity m_Waypoint;
+            public Entity m_Stop;
             public readonly List<PathElement> m_Path = new List<PathElement>();
             public readonly List<Entity> m_Segments = new List<Entity>();
         }
@@ -117,6 +121,7 @@ namespace SkylinesMaps.Systems
             public int m_Changes;
             public float m_WalkDistance;
             public bool m_Usable = true;
+            public int m_Order;
             public readonly List<JourneyLeg> m_Legs = new List<JourneyLeg>();
             public string m_Via = string.Empty;
         }
@@ -212,6 +217,20 @@ namespace SkylinesMaps.Systems
 
         private static readonly Color32 kAlternateColor = new Color32(140, 146, 153, 255);
 
+        private static readonly RouteKind[] kRouteKinds =
+        {
+            RouteKind.Fastest,
+            RouteKind.IgnoreTraffic,
+            RouteKind.FewerTurns,
+            RouteKind.Shortest,
+        };
+
+        private static readonly Comparison<RouteOption> kByDuration = (a, b) =>
+        {
+            int result = a.m_Duration.CompareTo(b.m_Duration);
+            return result != 0 ? result : a.m_Order.CompareTo(b.m_Order);
+        };
+
         private ToolSystem m_ToolSystem;
         private PathfindSetupSystem m_PathfindSetupSystem;
         private LiveCongestionSystem m_LiveCongestionSystem;
@@ -276,18 +295,24 @@ namespace SkylinesMaps.Systems
         private readonly List<Entity> m_PendingDeletes = new List<Entity>();
         private readonly List<TrafficBand> m_Bands = new List<TrafficBand>();
 
+        private readonly Dictionary<Entity, float> m_StreetLengths = new Dictionary<Entity, float>();
+        private readonly List<TrafficBand> m_BandScratch = new List<TrafficBand>();
+
         private bool m_HasMarkers;
         private float3 m_StartMarker;
         private float3 m_EndMarker;
 
         private float m_RefreshTimer;
         private float m_FailureTimer;
+        private int m_PlanSignature;
 
         public JourneyState state { get; private set; }
 
         public bool failed => m_FailureTimer > 0f;
 
         public int planVersion { get; private set; }
+
+        public int displayVersion { get; private set; }
 
         public IReadOnlyList<Entity> routeEntities => m_Routes;
 
@@ -406,7 +431,7 @@ namespace SkylinesMaps.Systems
             m_HasPendingClear = false;
             m_FailureTimer = 0f;
             state = JourneyState.Idle;
-            planVersion++;
+            BumpPlan();
             ResumeTrafficRoutes();
         }
 
@@ -553,8 +578,11 @@ namespace SkylinesMaps.Systems
                 writer.TypeBegin("SkylinesMaps.JourneyMode");
                 writer.PropertyName("available");
                 writer.Write(available);
+                float bestMode = available ? GetBestDuration(m_ModeRoutes[mode]) : 0f;
+                writer.PropertyName("duration");
+                writer.Write(bestMode);
                 writer.PropertyName("gameDuration");
-                writer.Write(available ? GetBestDuration(m_ModeRoutes[mode]) * kGameSecondsPerSimulationSecond : 0f);
+                writer.Write(bestMode * kGameSecondsPerSimulationSecond);
                 writer.TypeEnd();
             }
 
@@ -579,6 +607,8 @@ namespace SkylinesMaps.Systems
                 writer.Write(option.m_Distance);
                 writer.PropertyName("traffic");
                 writer.Write(option.m_Mode == TravelMode.Car ? option.m_Traffic : -1);
+                writer.PropertyName("realDelta");
+                writer.Write(option.m_Duration - best);
                 writer.PropertyName("delta");
                 writer.Write((option.m_Duration - best) * kGameSecondsPerSimulationSecond);
                 writer.PropertyName("legs");
@@ -632,8 +662,12 @@ namespace SkylinesMaps.Systems
                 writer.TypeBegin("SkylinesMaps.JourneyLeg");
                 writer.PropertyName("type");
                 writer.Write((int)leg.m_Type);
+                writer.PropertyName("duration");
+                writer.Write(leg.m_Duration);
                 writer.PropertyName("gameDuration");
                 writer.Write(leg.m_Duration * kGameSecondsPerSimulationSecond);
+                writer.PropertyName("realWait");
+                writer.Write(leg.m_Wait);
                 writer.PropertyName("wait");
                 writer.Write(leg.m_Wait * kGameSecondsPerSimulationSecond);
                 writer.PropertyName("distance");
@@ -648,6 +682,10 @@ namespace SkylinesMaps.Systems
                 writer.Write(leg.m_From);
                 writer.PropertyName("to");
                 writer.Write(leg.m_To);
+                writer.PropertyName("fromShort");
+                writer.Write(leg.m_FromShort);
+                writer.PropertyName("toShort");
+                writer.Write(leg.m_ToShort);
                 writer.PropertyName("stops");
                 writer.Write(leg.m_Stops);
                 writer.PropertyName("price");
@@ -726,7 +764,7 @@ namespace SkylinesMaps.Systems
                     m_Mode = (TravelMode)m_PendingModeSelection;
                     m_Selected = 0;
                     ShowSelected(true);
-                    planVersion++;
+                    BumpPlan();
                 }
             }
 
@@ -740,7 +778,7 @@ namespace SkylinesMaps.Systems
                 {
                     m_Selected = m_PendingRouteSelection;
                     ShowSelected(true);
-                    planVersion++;
+                    BumpPlan();
                 }
             }
 
@@ -800,7 +838,7 @@ namespace SkylinesMaps.Systems
             m_ToName = GetPlaceName(m_Destination);
 
             NativeQueue<SetupQueueItem> queue = m_PathfindSetupSystem.GetQueue(this, 0);
-            foreach (RouteKind kind in (RouteKind[])Enum.GetValues(typeof(RouteKind)))
+            foreach (RouteKind kind in kRouteKinds)
             {
                 Entity request = EntityManager.CreateEntity(m_RequestArchetype);
                 EntityManager.SetComponentData(request, new PathOwner { m_State = PathFlags.Pending });
@@ -837,7 +875,7 @@ namespace SkylinesMaps.Systems
             m_DestinationAccess = destinationDrive != destinationTarget ? CreateAccessRequest(queue, destinationDrive, destinationTarget) : null;
 
             state = JourneyState.Pathfinding;
-            planVersion++;
+            BumpPlan();
         }
 
         private static PathfindParameters GetParameters(RouteKind kind)
@@ -1184,9 +1222,7 @@ namespace SkylinesMaps.Systems
 
             foreach (List<RouteOption> routes in m_ModeRoutes)
             {
-                List<RouteOption> sorted = routes.OrderBy(option => option.m_Duration).ToList();
-                routes.Clear();
-                routes.AddRange(sorted);
+                SortByDuration(routes);
             }
 
             if (selected != null)
@@ -1376,12 +1412,16 @@ namespace SkylinesMaps.Systems
                 UpdateMetrics(option);
             }
 
-            m_Options.Sort((a, b) => a.m_Duration.CompareTo(b.m_Duration));
+            SortByDuration(m_Options);
             AssignTags();
             ResolveModeRoutes();
             SetMissingReasons();
             AssignTransitTags();
-            LogTransitLines();
+
+            if (m_ModeRoutes[(int)TravelMode.Transit].Count == 0)
+            {
+                LogTransitLines();
+            }
 
             if (!SelectFirstAvailableMode())
             {
@@ -1396,7 +1436,7 @@ namespace SkylinesMaps.Systems
             m_RefreshTimer = kRefreshInterval;
             SuspendTrafficRoutes();
             ShowSelected(true);
-            planVersion++;
+            BumpPlan();
         }
 
         private bool IsUsable(Entity request)
@@ -1408,10 +1448,10 @@ namespace SkylinesMaps.Systems
 
         private bool IsDuplicate(RouteOption option, List<RouteOption> kept)
         {
-            DynamicBuffer<PathElement> path = EntityManager.GetBuffer<PathElement>(option.m_Request);
+            DynamicBuffer<PathElement> path = EntityManager.GetBuffer<PathElement>(option.m_Request, true);
             foreach (RouteOption other in kept)
             {
-                DynamicBuffer<PathElement> otherPath = EntityManager.GetBuffer<PathElement>(other.m_Request);
+                DynamicBuffer<PathElement> otherPath = EntityManager.GetBuffer<PathElement>(other.m_Request, true);
                 if (otherPath.Length != path.Length)
                 {
                     continue;
@@ -1450,13 +1490,15 @@ namespace SkylinesMaps.Systems
             }
 
             GetRange(out float min, out float max);
-            NativeArray<PathElement> path = EntityManager.GetBuffer<PathElement>(option.m_Request).ToNativeArray(Allocator.Temp);
+
+            DynamicBuffer<PathElement> path = EntityManager.GetBuffer<PathElement>(option.m_Request, true);
 
             float distance = 0f;
             float duration = 0f;
             float slow = 0f;
             float jammed = 0f;
-            Dictionary<Entity, float> streets = new Dictionary<Entity, float>();
+            Dictionary<Entity, float> streets = m_StreetLengths;
+            streets.Clear();
             Entity previousNode = Entity.Null;
             Entity previousTurnNode = Entity.Null;
             int turns = 0;
@@ -1523,8 +1565,6 @@ namespace SkylinesMaps.Systems
                 }
             }
 
-            path.Dispose();
-
             option.m_Distance = distance;
             option.m_Duration = duration;
             option.m_Turns = turns;
@@ -1533,17 +1573,6 @@ namespace SkylinesMaps.Systems
                 : jammed / distance >= kJammedShare ? 2
                 : (jammed + slow) / distance >= kSlowShare ? 1
                 : 0;
-
-            Entity mainStreet = Entity.Null;
-            float mainLength = 0f;
-            foreach (KeyValuePair<Entity, float> street in streets)
-            {
-                if (street.Value > mainLength)
-                {
-                    mainLength = street.Value;
-                    mainStreet = street.Key;
-                }
-            }
 
             option.m_Via = GetName(GetMainStreet(streets));
             AddAccess(option);
@@ -1667,8 +1696,9 @@ namespace SkylinesMaps.Systems
                 return;
             }
 
-            NativeArray<PathElement> path = EntityManager.GetBuffer<PathElement>(option.m_Request).ToNativeArray(Allocator.Temp);
-            Dictionary<Entity, float> streets = new Dictionary<Entity, float>();
+            DynamicBuffer<PathElement> path = EntityManager.GetBuffer<PathElement>(option.m_Request, true);
+            Dictionary<Entity, float> streets = m_StreetLengths;
+            streets.Clear();
             JourneyLeg leg = null;
             Entity boardingWaypoint = Entity.Null;
             bool supported = true;
@@ -1710,7 +1740,9 @@ namespace SkylinesMaps.Systems
                 {
                     if (leg != null && leg.m_Open && leg.m_Line != Entity.Null)
                     {
-                        leg.m_To = GetStopName(EntityManager.GetComponentData<Game.Routes.Connected>(target).m_Connected);
+                        Entity alightStop = EntityManager.GetComponentData<Game.Routes.Connected>(target).m_Connected;
+                        leg.m_To = GetStopName(alightStop);
+                        leg.m_ToShort = GetStopName(alightStop, false);
                         leg.m_Open = false;
                     }
                     else
@@ -1755,8 +1787,6 @@ namespace SkylinesMaps.Systems
                 leg.m_Path.Add(element);
                 AddStreetLength(streets, target, length);
             }
-
-            path.Dispose();
 
             float distance = 0f;
             float duration = 0f;
@@ -1821,7 +1851,10 @@ namespace SkylinesMaps.Systems
             if (waypoint != Entity.Null)
             {
                 Entity stop = EntityManager.GetComponentData<Game.Routes.Connected>(waypoint).m_Connected;
+                leg.m_Waypoint = waypoint;
+                leg.m_Stop = stop;
                 leg.m_From = GetStopName(stop);
+                leg.m_FromShort = GetStopName(stop, false);
                 leg.m_Wait = GetWait(waypoint, stop, line);
             }
 
@@ -1874,9 +1907,19 @@ namespace SkylinesMaps.Systems
             Mod.log.Info($"Journey transit lines at {(night ? "night" : "day")}: {summary}");
         }
 
+        private static void SortByDuration(List<RouteOption> routes)
+        {
+            for (int i = 0; i < routes.Count; i++)
+            {
+                routes[i].m_Order = i;
+            }
+
+            routes.Sort(kByDuration);
+        }
+
         private void RemoveDuplicateTransit(List<RouteOption> routes)
         {
-            routes.Sort((a, b) => a.m_Duration.CompareTo(b.m_Duration));
+            SortByDuration(routes);
             HashSet<string> seen = new HashSet<string>();
             for (int i = 0; i < routes.Count; i++)
             {
@@ -1943,7 +1986,7 @@ namespace SkylinesMaps.Systems
             return price;
         }
 
-        private string GetStopName(Entity stop)
+        private string GetStopName(Entity stop, bool withAddress = true)
         {
             if (stop == Entity.Null || !EntityManager.Exists(stop))
             {
@@ -1963,6 +2006,15 @@ namespace SkylinesMaps.Systems
 
             if (owner != stop && EntityManager.Exists(owner))
             {
+                if (!withAddress)
+                {
+                    string plain = GetName(owner);
+                    if (!string.IsNullOrEmpty(plain))
+                    {
+                        return plain;
+                    }
+                }
+
                 return GetPlaceName(owner);
             }
 
@@ -2233,7 +2285,7 @@ namespace SkylinesMaps.Systems
 
             bool trafficLights = EntityManager.HasComponent<Game.Net.TrafficLights>(node);
             bool junction = trafficLights
-                || (EntityManager.HasBuffer<ConnectedEdge>(node) && EntityManager.GetBuffer<ConnectedEdge>(node).Length > 2);
+                || (EntityManager.HasBuffer<ConnectedEdge>(node) && EntityManager.GetBuffer<ConnectedEdge>(node, true).Length > 2);
 
             if (!junction)
             {
@@ -2274,19 +2326,103 @@ namespace SkylinesMaps.Systems
 
             m_RefreshTimer = kRefreshInterval;
 
-            foreach (List<RouteOption> routes in m_ModeRoutes)
+            foreach (RouteOption option in m_Options)
             {
-                foreach (RouteOption option in routes)
-                {
-                    UpdateMetrics(option);
-                }
+                UpdateMetrics(option);
             }
+
+            RefreshTransitWaits();
 
             ResortRoutes();
             AssignTags();
             AssignTransitTags();
             ShowSelected(false);
+
+            int signature = GetPlanSignature();
+            if (signature != m_PlanSignature)
+            {
+                m_PlanSignature = signature;
+                planVersion++;
+            }
+        }
+
+        private void RefreshTransitWaits()
+        {
+            foreach (RouteOption option in m_ModeRoutes[(int)TravelMode.Transit])
+            {
+                float duration = 0f;
+
+                foreach (JourneyLeg leg in option.m_Legs)
+                {
+                    if (leg.m_Line != Entity.Null
+                        && leg.m_Waypoint != Entity.Null
+                        && EntityManager.Exists(leg.m_Waypoint))
+                    {
+                        leg.m_Wait = GetWait(leg.m_Waypoint, leg.m_Stop, leg.m_Line);
+                    }
+
+                    duration += leg.m_Duration + leg.m_Wait;
+                }
+
+                option.m_Duration = duration;
+            }
+        }
+
+        private void BumpPlan()
+        {
+            m_PlanSignature = GetPlanSignature();
             planVersion++;
+        }
+
+        private static int Quantise(float value)
+        {
+            return (int)math.round(value);
+        }
+
+        private static int QuantiseDisplay(float seconds)
+        {
+            return seconds < 60f ? Quantise(seconds) : Quantise(seconds / 60f) * 60;
+        }
+
+        private int GetPlanSignature()
+        {
+            unchecked
+            {
+                int hash = (int)state;
+                hash = hash * 31 + (int)m_Mode;
+                hash = hash * 31 + m_Selected;
+
+                for (int mode = 0; mode < kModeCount; mode++)
+                {
+                    List<RouteOption> routes = m_ModeRoutes[mode];
+                    hash = hash * 31 + routes.Count;
+                    hash = hash * 31 + Quantise(GetBestDuration(routes) * kGameSecondsPerSimulationSecond / 60f);
+                }
+
+                List<RouteOption> current = CurrentRoutes;
+                float best = GetBestDuration(current);
+
+                foreach (RouteOption option in current)
+                {
+                    hash = hash * 31 + (int)option.m_Tags;
+                    hash = hash * 31 + option.m_Traffic;
+                    hash = hash * 31 + option.m_Cost;
+                    hash = hash * 31 + QuantiseDisplay(option.m_Duration);
+                    hash = hash * 31 + Quantise(option.m_Duration * kGameSecondsPerSimulationSecond / 60f);
+                    hash = hash * 31 + Quantise((option.m_Duration - best) * kGameSecondsPerSimulationSecond / 60f);
+                    hash = hash * 31 + Quantise(option.m_Distance * 0.1f);
+                    hash = hash * 31 + (option.m_Via ?? string.Empty).GetHashCode();
+
+                    foreach (JourneyLeg leg in option.m_Legs)
+                    {
+                        hash = hash * 31 + Quantise(leg.m_Duration * kGameSecondsPerSimulationSecond / 60f);
+                        hash = hash * 31 + Quantise(leg.m_Wait * kGameSecondsPerSimulationSecond / 60f);
+                        hash = hash * 31 + QuantiseDisplay(leg.m_Duration + leg.m_Wait);
+                    }
+                }
+
+                return hash;
+            }
         }
 
         private void SuspendTrafficRoutes()
@@ -2487,7 +2623,8 @@ namespace SkylinesMaps.Systems
         {
             GetRange(out float min, out float max);
 
-            List<TrafficBand> bands = new List<TrafficBand>(path.Length);
+            List<TrafficBand> bands = m_BandScratch;
+            bands.Clear();
             for (int i = 0; i < path.Length; i++)
             {
                 bands.Add(GetBand(path[i], min, max, out float _));
@@ -2846,6 +2983,7 @@ namespace SkylinesMaps.Systems
                 m_AlternateRoutes.Add(route);
             }
             m_Routes.Add(route);
+            displayVersion++;
             return route;
         }
 
@@ -2980,7 +3118,7 @@ namespace SkylinesMaps.Systems
             m_FromName = string.Empty;
             m_ToName = string.Empty;
             state = JourneyState.Idle;
-            planVersion++;
+            BumpPlan();
             ResumeTrafficRoutes();
         }
 
@@ -3009,6 +3147,7 @@ namespace SkylinesMaps.Systems
             m_AlternateRoutes.Clear();
             m_Segments.Clear();
             m_Holders.Clear();
+            displayVersion++;
 
             FlushPendingDeletes();
         }

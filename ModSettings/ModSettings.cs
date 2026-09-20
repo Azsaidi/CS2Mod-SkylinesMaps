@@ -22,6 +22,20 @@ namespace SkylinesMaps
         public const string kKeybindingGroup = "KeyBinding";
         public const string kAboutGroup = "About";
 
+        public enum TimeDisplay
+        {
+            RealAndGame,
+            RealTimeOnly,
+            GameTimeOnly,
+        }
+
+        public enum ClockFormat
+        {
+            MatchGame,
+            TwentyFourHour,
+            TwelveHour,
+        }
+
         public enum ColorPreset
         {
             GoogleMaps,
@@ -75,6 +89,21 @@ namespace SkylinesMaps
 
         [SettingsUISection(kSection, kJourneyGroup)]
         public bool DisableJourneyCameraZoom { get; set; } = false;
+
+        [SettingsUISection(kSection, kJourneyGroup)]
+        public bool ShowStepAddresses { get; set; } = true;
+
+        [SettingsUISection(kSection, kJourneyGroup)]
+        public TimeDisplay JourneyTimes { get; set; } = TimeDisplay.RealAndGame;
+
+        [SettingsUISection(kSection, kJourneyGroup)]
+        [SettingsUIDisableByCondition(typeof(ModSettings), nameof(IsArrivalClockDisabled))]
+        public ClockFormat ArrivalClock { get; set; } = ClockFormat.MatchGame;
+
+        public bool IsArrivalClockDisabled()
+        {
+            return JourneyTimes == TimeDisplay.RealTimeOnly;
+        }
 
         [SettingsUISection(kSection, kAboutGroup)]
         public string Version => ModAssemblyInfo.Version;
@@ -155,6 +184,9 @@ namespace SkylinesMaps
             RoundaboutJamFactor = 100;
             EnableJourneyPlanner = true;
             DisableJourneyCameraZoom = false;
+            ShowStepAddresses = true;
+            JourneyTimes = TimeDisplay.RealAndGame;
+            ArrivalClock = ClockFormat.MatchGame;
         }
     }
 }

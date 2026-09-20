@@ -21,6 +21,8 @@ namespace SkylinesMaps.Systems
 
         private bool m_WasActive;
 
+        public bool TrafficInfoviewOpen => m_TrafficInfoview != null && m_ToolSystem.activeInfoview == m_TrafficInfoview;
+
         protected override void OnCreate()
         {
             base.OnCreate();
@@ -74,8 +76,13 @@ namespace SkylinesMaps.Systems
 
         private void EnforceExclusivity()
         {
+            if (!TryGetTrafficInfoview(out InfoviewPrefab infoview))
+            {
+                return;
+            }
+
             Entity ours = m_InfomodeSystem.InfomodeEntity;
-            if (ours == Entity.Null || !TryGetTrafficInfoview(out InfoviewPrefab infoview))
+            if (ours == Entity.Null)
             {
                 return;
             }

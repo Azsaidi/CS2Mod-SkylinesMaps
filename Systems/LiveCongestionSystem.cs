@@ -27,6 +27,10 @@ namespace SkylinesMaps.Systems
         /// Rendering frames between vehicle samples, approx 4 times/s at 60fps.
         private const int kSampleInterval = 15;
 
+        private const int kIdleSampleInterval = 60;
+
+        private const int kTrimInterval = 64;
+
         private const float kDefaultLaneCount = 2f;
 
         private const float kCityJamRatio = 0.10f;
@@ -503,12 +507,13 @@ namespace SkylinesMaps.Systems
 
         public bool TryGetFlow(Entity road, out float2 flow)
         {
-            m_LastHandle.Complete();
+            CompleteJobs();
             flow = default;
             return m_Smoothed.IsCreated && m_Smoothed.TryGetValue(road, out flow);
         }
 
         private CongestionInfomodeSystem m_InfomodeSystem;
+        private TrafficInfoviewToggleSystem m_ToggleSystem;
         private Game.Simulation.SimulationSystem m_SimulationSystem;
         private EntityQuery m_VehicleQuery;
         private EntityQuery m_EdgeQuery;
@@ -520,7 +525,13 @@ namespace SkylinesMaps.Systems
         private NativeParallelHashMap<Entity, float> m_LaneCounts;
         private NativeArray<float> m_CityStats;
         private JobHandle m_LastHandle;
-        private int m_FrameCounter;
+
+        private bool m_JobsRunning;
+
+        private int m_FrameCounter = kIdleSampleInterval;
+        private int m_ResampleCounter;
+
+        private float m_CityTarget = 100f;
 
         /// Waits as of the last finished sample, and the map the running sample is writing. Swapped once it finishes.
         private NativeParallelHashMap<Entity, float> m_Waits;
@@ -545,6 +556,7 @@ namespace SkylinesMaps.Systems
             base.OnCreate();
 
             m_InfomodeSystem = World.GetOrCreateSystemManaged<CongestionInfomodeSystem>();
+            m_ToggleSystem = World.GetOrCreateSystemManaged<TrafficInfoviewToggleSystem>();
             m_TimeSystem = World.GetOrCreateSystemManaged<Game.Simulation.TimeSystem>();
             m_SimulationSystem = World.GetOrCreateSystemManaged<Game.Simulation.SimulationSystem>();
 
@@ -583,9 +595,20 @@ namespace SkylinesMaps.Systems
             m_CityStats = new NativeArray<float>(2, Allocator.Persistent);
         }
 
+        private void CompleteJobs()
+        {
+            if (!m_JobsRunning)
+            {
+                return;
+            }
+
+            m_LastHandle.Complete();
+            m_JobsRunning = false;
+        }
+
         protected override void OnDestroy()
         {
-            m_LastHandle.Complete();
+            CompleteJobs();
 
             if (m_Samples.IsCreated)
             {
@@ -743,76 +766,76 @@ namespace SkylinesMaps.Systems
             return step;
         }
 
+        private void UpdateCityFlow()
+        {
+            if (!m_CityStats.IsCreated)
+            {
+                return;
+            }
+
+            float delta = math.min(UnityEngine.Time.unscaledDeltaTime, kCityFlowInterval);
+
+            m_CityFlowSmoothed = m_CityFlowPrimed
+                ? math.lerp(m_CityFlowSmoothed, m_CityTarget, math.saturate(delta / kCityFlowSmoothing))
+                : m_CityTarget;
+            m_CityFlowPrimed = true;
+
+            RecordHistory();
+
+            m_CityFlowTimer += delta;
+            if (m_CityFlowTimer >= kCityFlowInterval)
+            {
+                m_CityFlowTimer = 0f;
+                CityFlowPercent = m_CityFlowSmoothed;
+
+                CityFlowAverage = FlowHistory != null
+                    ? (float)(m_HistorySum / kHistorySlots)
+                    : m_CityFlowSmoothed;
+            }
+        }
+
         protected override void OnUpdate()
         {
-            m_LastHandle.Complete();
-
-            if (m_WaitsPending)
-            {
-                NativeParallelHashMap<Entity, float> finished = m_NextWaits;
-                m_NextWaits = m_Waits;
-                m_Waits = finished;
-                m_WaitsPending = false;
-            }
-
-            if (m_CityStats.IsCreated)
-            {
-                float weight = m_CityStats[1];
-
-                float target = 100f;
-                if (weight > kMinCityWeight)
-                {
-                    float mean = m_CityStats[0] / weight;
-                    target = math.saturate((mean - kCityJamRatio) / (kCityFreeRatio - kCityJamRatio)) * 100f;
-                }
-
-                float delta = math.min(UnityEngine.Time.unscaledDeltaTime, kCityFlowInterval);
-
-                m_CityFlowSmoothed = m_CityFlowPrimed
-                    ? math.lerp(m_CityFlowSmoothed, target, math.saturate(delta / kCityFlowSmoothing))
-                    : target;
-                m_CityFlowPrimed = true;
-
-                RecordHistory();
-
-                m_CityFlowTimer += delta;
-                if (m_CityFlowTimer >= kCityFlowInterval)
-                {
-                    m_CityFlowTimer = 0f;
-                    CityFlowPercent = m_CityFlowSmoothed;
-
-                    CityFlowAverage = FlowHistory != null
-                        ? (float)(m_HistorySum / kHistorySlots)
-                        : m_CityFlowSmoothed;
-                }
-            }
-
             ModSettings settings = Mod.Settings;
-            if (settings == null)
-            {
-                Active = false;
-                return;
-            }
-
             Entity infomode = m_InfomodeSystem.InfomodeEntity;
-            if (infomode == Entity.Null || !EntityManager.HasComponent<InfoviewNetStatusData>(infomode))
-            {
-                Active = false;
-                return;
-            }
 
+            bool hasInfomode = settings != null
+                && infomode != Entity.Null
+                && EntityManager.HasComponent<InfoviewNetStatusData>(infomode);
 
-            bool writeColors = EntityManager.HasComponent<InfomodeActive>(infomode);
+            bool writeColors = hasInfomode && EntityManager.HasComponent<InfomodeActive>(infomode);
             Active = writeColors;
 
-            int edgeCount = m_EdgeQuery.CalculateEntityCount();
-            if (edgeCount == 0)
+            bool watched = writeColors || m_ToggleSystem.TrafficInfoviewOpen;
+            bool hasEdges = !m_EdgeQuery.IsEmptyIgnoreFilter;
+
+            bool resample = hasEdges && m_FrameCounter >= (watched ? kSampleInterval : kIdleSampleInterval);
+            m_FrameCounter = resample ? 0 : math.min(m_FrameCounter + 1, kIdleSampleInterval);
+
+            if (resample)
             {
-                return;
+                CompleteJobs();
+
+                if (m_WaitsPending)
+                {
+                    NativeParallelHashMap<Entity, float> finished = m_NextWaits;
+                    m_NextWaits = m_Waits;
+                    m_Waits = finished;
+                    m_WaitsPending = false;
+                }
+
+                if (m_CityStats.IsCreated)
+                {
+                    float weight = m_CityStats[1];
+                    m_CityTarget = weight > kMinCityWeight
+                        ? math.saturate((m_CityStats[0] / weight - kCityJamRatio) / (kCityFreeRatio - kCityJamRatio)) * 100f
+                        : 100f;
+                }
             }
 
-            bool resample = m_FrameCounter++ % kSampleInterval == 0;
-            if (!writeColors && !resample)
+            UpdateCityFlow();
+
+            if (!hasInfomode || !hasEdges || (!writeColors && !resample))
             {
                 return;
             }
@@ -821,6 +844,7 @@ namespace SkylinesMaps.Systems
 
             if (resample)
             {
+                int edgeCount = m_EdgeQuery.CalculateEntityCount();
                 int vehicleCount = m_VehicleQuery.CalculateEntityCount();
 
                 m_Samples.Clear();
@@ -844,11 +868,15 @@ namespace SkylinesMaps.Systems
                 }
 
 
-                if (m_Smoothed.Count() > edgeCount * 2)
+                if (++m_ResampleCounter >= kTrimInterval)
                 {
-                    m_Smoothed.Clear();
+                    m_ResampleCounter = 0;
 
-                    m_LaneCounts.Clear();
+                    if (m_Smoothed.Count() > edgeCount * 2)
+                    {
+                        m_Smoothed.Clear();
+                        m_LaneCounts.Clear();
+                    }
                 }
 
                 if (m_Smoothed.Capacity < edgeCount)
@@ -916,6 +944,7 @@ namespace SkylinesMaps.Systems
             if (!writeColors)
             {
                 m_LastHandle = edgeHandle;
+                m_JobsRunning = true;
                 Dependency = m_LastHandle;
                 return;
             }
@@ -944,6 +973,7 @@ namespace SkylinesMaps.Systems
             laneJob.m_RangeMax = status.m_Range.max;
 
             m_LastHandle = JobChunkExtensions.ScheduleParallel(laneJob, m_LaneQuery, nodeHandle);
+            m_JobsRunning = true;
             Dependency = m_LastHandle;
         }
     }

@@ -82,6 +82,23 @@ namespace SkylinesMaps
                 { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.DisableJourneyCameraZoom)), "Disable camera zoom" },
                 { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.DisableJourneyCameraZoom)), "Stops the camera moving and zooming to fit a journey when routes are found or when you pick a different route or way of travelling." },
 
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.ShowStepAddresses)), "Show addresses" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.ShowStepAddresses)), "Prints the street address of each stop in the step by step directions. Turn it off to show only the stop names, which keeps each step to a single line." },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.JourneyTimes)), "Journey times" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.JourneyTimes)), "Which times the journey card prints. In-game time is what a citizen experiences; real time is how long the trip takes to watch at normal simulation speed. An arrival time needs an in-game time, so it is not shown when only real time is." },
+
+                { m_Setting.GetEnumValueLocaleID(ModSettings.TimeDisplay.RealAndGame), "Real and in-game time" },
+                { m_Setting.GetEnumValueLocaleID(ModSettings.TimeDisplay.RealTimeOnly), "Real time only" },
+                { m_Setting.GetEnumValueLocaleID(ModSettings.TimeDisplay.GameTimeOnly), "In-game time only" },
+
+                { m_Setting.GetOptionLabelLocaleID(nameof(ModSettings.ArrivalClock)), "Arrival time format" },
+                { m_Setting.GetOptionDescLocaleID(nameof(ModSettings.ArrivalClock)), "Which clock the journey planner prints an arrival time on. Match game follows the 12 or 24 hour clock chosen in the game's own interface options." },
+
+                { m_Setting.GetEnumValueLocaleID(ModSettings.ClockFormat.MatchGame), "Match game" },
+                { m_Setting.GetEnumValueLocaleID(ModSettings.ClockFormat.TwentyFourHour), "24 hour" },
+                { m_Setting.GetEnumValueLocaleID(ModSettings.ClockFormat.TwelveHour), "12 hour" },
+
                 { Systems.JourneyTooltipSystem.kSelectDestinationLocaleID, "Select the destination building or road for this journey" },
                 { Systems.JourneyTooltipSystem.kSearchingLocaleID, "Finding the best route..." },
                 { Systems.JourneyTooltipSystem.kFailedLocaleID, "No route found between these locations" },
@@ -100,6 +117,9 @@ namespace SkylinesMaps
                 { "SkylinesMaps.JourneyPlanner.SIMILAR", "Similar time" },
                 { "SkylinesMaps.JourneyPlanner.VIA", "via" },
                 { "SkylinesMaps.JourneyPlanner.REAL_TIME", "real time" },
+                { "SkylinesMaps.JourneyPlanner.REAL_SHORT", "real" },
+                { "SkylinesMaps.JourneyPlanner.THEN", "then" },
+                { "SkylinesMaps.JourneyPlanner.ETA", "ETA" },
                 { "SkylinesMaps.JourneyPlanner.KIND_FASTEST", "Fastest" },
                 { "SkylinesMaps.JourneyPlanner.KIND_LESS_TRAFFIC", "Less traffic" },
                 { "SkylinesMaps.JourneyPlanner.KIND_CHEAPEST", "Cheapest" },

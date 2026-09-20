@@ -1,4 +1,5 @@
 import { bindTrigger, bindTriggerWithArgs, bindValue, useValue } from "cs2/api";
+import { time } from "cs2/bindings";
 import { useLocalization } from "cs2/l10n";
 import { getModule } from "cs2/modding";
 import { Panel } from "cs2/ui";
@@ -37,7 +38,9 @@ const kGroup = "skylinesMaps";
 
 interface JourneyLeg {
     type: number;
+    duration: number;
     gameDuration: number;
+    realWait: number;
     wait: number;
     distance: number;
     line: string;
@@ -45,12 +48,15 @@ interface JourneyLeg {
     transport: number;
     from: string;
     to: string;
+    fromShort: string;
+    toShort: string;
     stops: number;
     price: number;
 }
 
 interface JourneyMode {
     available: boolean;
+    duration: number;
     gameDuration: number;
 }
 
@@ -63,6 +69,7 @@ interface JourneyRoute {
     gameDuration: number;
     distance: number;
     traffic: number;
+    realDelta: number;
     delta: number;
 }
 
@@ -78,6 +85,45 @@ interface JourneyPlan {
 }
 
 const plan$ = bindValue<JourneyPlan | null>(kGroup, "journeyPlan", null);
+const times$ = bindValue<number>(kGroup, "journeyTimes", 0);
+const stepAddresses$ = bindValue<boolean>(kGroup, "journeyStepAddresses", true);
+const arrivalClock$ = bindValue<number>(kGroup, "journeyArrivalClock", 0);
+
+enum TimeDisplay {
+    RealAndGame = 0,
+    RealTimeOnly = 1,
+    GameTimeOnly = 2,
+}
+
+interface CardView {
+    game: boolean;
+    real: boolean;
+    addresses: boolean;
+}
+
+const getCardView = (display: number, addresses: boolean): CardView => ({
+    game: display !== TimeDisplay.RealTimeOnly,
+    real: display !== TimeDisplay.GameTimeOnly,
+    addresses,
+});
+
+const kSeparator = ", ";
+
+const kLegLineHeight = "18rem";
+
+const kGameTwelveHours = 1;
+
+interface UnitSettings {
+    timeFormat: number;
+}
+
+const unitSettings$ = bindValue<UnitSettings | null>("options", "unitSettings", null);
+
+enum ClockFormat {
+    MatchGame = 0,
+    TwentyFourHour = 1,
+    TwelveHour = 2,
+}
 const selectRoute = bindTriggerWithArgs<[number]>(kGroup, "selectJourneyRoute");
 const clearJourney = bindTrigger(kGroup, "clearJourney");
 const selectMode = bindTriggerWithArgs<[number]>(kGroup, "selectJourneyMode");
@@ -175,6 +221,71 @@ const formatDuration = (seconds: number, allowSeconds: boolean): string => {
     return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
 };
 
+const useGameMinutes = (): number => {
+    const ticks = useValue(time.ticks$);
+    const settings = useValue(time.timeSettings$);
+
+    if (!settings || !settings.ticksPerDay) {
+        return -1;
+    }
+
+    const minutes = time.calculateMinutesSinceMidnightFromTicks(settings, ticks);
+    return Number.isFinite(minutes) ? minutes : -1;
+};
+
+const pad2 = (value: number): string => (value < 10 ? `0${value}` : `${value}`);
+
+const formatClock = (minutes: number, twelveHour: boolean, text: Translate): string => {
+    const wrapped = ((Math.round(minutes) % 1440) + 1440) % 1440;
+    const hour = Math.floor(wrapped / 60);
+    const minute = wrapped % 60;
+
+    if (!twelveHour) {
+        return text("Common.TIME_FORMAT", "{HOUR}:{MINUTE}")
+            .replace("{HOUR}", pad2(hour))
+            .replace("{MINUTE}", pad2(minute));
+    }
+
+    const period = hour < 12
+        ? text("Common.TIME_PERIOD_AM", "AM")
+        : text("Common.TIME_PERIOD_PM", "PM");
+
+    return text("Common.TIME_FORMAT_12", "{HOUR}:{MINUTE} {PERIOD}")
+        .replace("{HOUR}", pad2(hour % 12 || 12))
+        .replace("{MINUTE}", pad2(minute))
+        .replace("{PERIOD}", period);
+};
+
+const formatLegTime = (leg: JourneyLeg, view: CardView, text: Translate): string => {
+    const game = view.game ? formatDuration(leg.gameDuration, false) : "";
+    if (!view.real) {
+        return game;
+    }
+
+    const real = formatDuration(leg.duration, true);
+    return game ? `${game} / ${real} ${text("SkylinesMaps.JourneyPlanner.REAL_SHORT", "real")}` : real;
+};
+
+const ArrivalTime = ({ route, text }: { route: JourneyRoute; text: Translate }) => {
+    const minutes = useGameMinutes();
+    const clock = useValue(arrivalClock$);
+    const units = useValue(unitSettings$);
+
+    if (minutes < 0) {
+        return null;
+    }
+
+    const twelveHour = clock === ClockFormat.MatchGame
+        ? !!units && units.timeFormat === kGameTwelveHours
+        : clock === ClockFormat.TwelveHour;
+
+    return (
+        <span style={etaStyle}>
+            {`${text("SkylinesMaps.JourneyPlanner.ETA", "ETA")} ${formatClock(minutes + route.gameDuration / 60, twelveHour, text)}`}
+        </span>
+    );
+};
+
 const formatCost = (cost: number, text: Translate): string =>
     cost > 0 ? `¢${cost.toLocaleString()}` : text("SkylinesMaps.JourneyPlanner.FREE", "Free");
 
@@ -229,12 +340,14 @@ const Timeline = ({
     gap,
     inset,
     align,
+    markerHeight,
     style,
 }: {
     items: TimelineItem[];
     gap: string;
     inset: string;
     align: string;
+    markerHeight?: string;
     style: React.CSSProperties;
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -318,7 +431,7 @@ const Timeline = ({
     });
 
     const columnStyle: React.CSSProperties = sizes
-        ? { ...markerColumnStyle, width: `${sizes.column}px`, height: `${sizes.column}px` }
+        ? { ...markerColumnStyle, width: `${sizes.column}px`, height: markerHeight ?? `${sizes.column}px` }
         : markerColumnStyle;
 
     const renderMarker = (item: TimelineItem, index: number) => {
@@ -417,12 +530,14 @@ const ModeTab = ({
     mode,
     index,
     plan,
+    view,
     text,
     ui,
 }: {
     mode: typeof kModes[number];
     index: number;
     plan: JourneyPlan;
+    view: CardView;
     text: Translate;
     ui: TabUi;
 }) => {
@@ -452,7 +567,9 @@ const ModeTab = ({
                 ? <ui.TintedIcon src={mode.icon} style={{ ...tabIconStyle, backgroundColor: colour }} />
                 : <img src={mode.icon} style={tabIconStyle} />}
             <span style={{ ...tabTimeStyle, color: colour }}>
-                {available ? formatDuration(info.gameDuration, false) : text("SkylinesMaps.JourneyPlanner.NO_ROUTE", "No route")}
+                {available
+                    ? formatDuration(view.game ? info.gameDuration : info.duration, !view.game)
+                    : text("SkylinesMaps.JourneyPlanner.NO_ROUTE", "No route")}
             </span>
         </div>
     );
@@ -464,24 +581,36 @@ const ModeTab = ({
     );
 };
 
-const ModeTabs = ({ plan, text }: { plan: JourneyPlan; text: Translate }) => {
+const ModeTabs = ({ plan, view, text }: { plan: JourneyPlan; view: CardView; text: Translate }) => {
     const ui = getTabUi();
 
     return (
         <div style={tabsRowStyle}>
             {kModes.map((mode, index) => (
-                <ModeTab key={index} mode={mode} index={index} plan={plan} text={text} ui={ui} />
+                <ModeTab
+                    key={index}
+                    mode={mode}
+                    index={index}
+                    plan={plan}
+                    view={view}
+                    text={text}
+                    ui={ui}
+                />
             ))}
         </div>
     );
 };
 
-const LegRow = ({ leg, text }: { leg: JourneyLeg; text: Translate }) => {
+const LegRow = ({ leg, view, text }: { leg: JourneyLeg; view: CardView; text: Translate }) => {
+    const total = formatLegTime(leg, view, text);
+
     if (leg.type === 0) {
         return (
             <div style={legRowStyle}>
                 <span style={legTextStyle}>
-                    {`${text("SkylinesMaps.JourneyPlanner.WALK", "Walk")} ${formatDuration(leg.gameDuration, false)} · ${formatDistance(leg.distance)}`}
+                    {`${text("SkylinesMaps.JourneyPlanner.WALK", "Walk")} `}
+                    <span style={legTotalStyle}>{total}</span>
+                    {`${kSeparator}${formatDistance(leg.distance)}`}
                 </span>
             </div>
         );
@@ -491,44 +620,50 @@ const LegRow = ({ leg, text }: { leg: JourneyLeg; text: Translate }) => {
     const stops = `${leg.stops} ${leg.stops === 1
         ? text("SkylinesMaps.JourneyPlanner.STOP", "stop")
         : text("SkylinesMaps.JourneyPlanner.STOPS", "stops")}`;
-    const details = [
-        leg.wait >= 60 ? `${text("SkylinesMaps.JourneyPlanner.WAIT", "Wait")} ${formatDuration(leg.wait, false)}` : "",
-        stops,
-        formatDuration(leg.gameDuration, false),
-    ].filter((part) => part.length > 0).join(" · ");
-    const places = leg.from && leg.to
-        ? `${leg.from} ${text("SkylinesMaps.JourneyPlanner.TO", "to")} ${leg.to}`
-        : leg.from || leg.to;
+    const showWait = view.game ? leg.wait >= 60 : leg.realWait >= 1;
+    const wait = showWait
+        ? `${text("SkylinesMaps.JourneyPlanner.WAIT", "Wait")} ${formatDuration(view.game ? leg.wait : leg.realWait, !view.game)}`
+        : "";
+    const details = wait
+        ? `${wait} ${text("SkylinesMaps.JourneyPlanner.THEN", "then")} ${stops}`
+        : stops;
+    const from = view.addresses ? leg.from : leg.fromShort || leg.from;
+    const to = view.addresses ? leg.to : leg.toShort || leg.to;
+    const places = from && to
+        ? `${from} ${text("SkylinesMaps.JourneyPlanner.TO", "to")} ${to}`
+        : from || to;
 
     return (
         <div>
             <div style={legRowStyle}>
                 <span style={{ ...linePillStyle, backgroundColor: leg.color, color: getLabelColour(leg.color) }}>{name}</span>
-                {places && <span style={legTextStyle}>{places}</span>}
             </div>
+            {places && <div style={legPlacesStyle}>{places}</div>}
             <div style={legDetailStyle}>{details}</div>
+            <div style={legTotalLineStyle}>{total}</div>
         </div>
     );
 };
 
-const buildLegItems = (legs: JourneyLeg[], text: Translate): TimelineItem[] => {
+const buildLegItems = (legs: JourneyLeg[], view: CardView, text: Translate): TimelineItem[] => {
     const items: TimelineItem[] = [];
     legs.forEach((leg, index) => {
         items.push({
             marker: "icon",
             icon: leg.type === 0 ? walkIcon : kTransportIcons[leg.transport] ?? transitIcon,
-            content: <LegRow leg={leg} text={text} />,
+            content: <LegRow leg={leg} view={view} text={text} />,
         });
 
         if (leg.type !== 0 && legs.slice(index + 1).some((next) => next.type !== 0)) {
             const change = text("SkylinesMaps.JourneyPlanner.CHANGE", "Change");
+            const at = view.addresses ? leg.to : leg.toShort || leg.to;
             items.push({
                 marker: "icon",
                 icon: changeIcon,
                 content: (
                     <div style={legRowStyle}>
                         <span style={legTextStyle}>
-                            {leg.to ? `${change} ${text("SkylinesMaps.JourneyPlanner.AT", "at")} ${leg.to}` : change}
+                            {at ? `${change} ${text("SkylinesMaps.JourneyPlanner.AT", "at")} ${at}` : change}
                         </span>
                     </div>
                 ),
@@ -544,26 +679,29 @@ const RouteRow = ({
     index,
     selected,
     single,
+    view,
     text,
 }: {
     route: JourneyRoute;
     index: number;
     selected: boolean;
     single: boolean;
+    view: CardView;
     text: Translate;
 }) => {
     const tagLabel = kTags
         .filter((tag) => (route.tags & tag.flag) !== 0)
         .map((tag) => text(tag.id, tag.fallback))
-        .join(" · ");
-    const minutesSlower = Math.round(route.delta / 60);
+        .join(kSeparator);
+    const delta = view.game ? route.delta : route.realDelta;
+    const slower = view.game ? Math.round(delta / 60) : Math.round(delta);
 
     const note = single
         ? ""
         : index === 0
             ? text("SkylinesMaps.JourneyPlanner.BEST", "Best route")
-            : minutesSlower > 0
-                ? `+${formatDuration(route.delta, false)}`
+            : slower > 0
+                ? `+${formatDuration(delta, !view.game)}`
                 : text("SkylinesMaps.JourneyPlanner.SIMILAR", "Similar time");
     const timeColour = route.traffic >= 0
         ? kTrafficColours[route.traffic] ?? kTrafficColours[0]
@@ -579,11 +717,14 @@ const RouteRow = ({
             <div style={rowLineStyle}>
                 <div style={timeColumnStyle}>
                     <span style={{ ...durationStyle, color: timeColour }}>
-                        {formatDuration(route.gameDuration, false)}
+                        {formatDuration(view.game ? route.gameDuration : route.duration, !view.game)}
                     </span>
-                    <span style={realTimeStyle}>
-                        {`${formatDuration(route.duration, true)} ${text("SkylinesMaps.JourneyPlanner.REAL_TIME", "real time")}`}
-                    </span>
+                    {view.game && <ArrivalTime route={route} text={text} />}
+                    {view.game && view.real && (
+                        <span style={realTimeStyle}>
+                            {`${formatDuration(route.duration, true)} ${text("SkylinesMaps.JourneyPlanner.REAL_TIME", "real time")}`}
+                        </span>
+                    )}
                 </div>
                 <div style={sideColumnStyle}>
                     <span style={distanceStyle}>{formatDistance(route.distance)}</span>
@@ -593,10 +734,11 @@ const RouteRow = ({
             {hasLegs && tagLabel && <div style={kindStyle}>{tagLabel}</div>}
             {hasLegs && selected ? (
                 <Timeline
-                    items={buildLegItems(route.legs, text)}
+                    items={buildLegItems(route.legs, view, text)}
                     gap="10rem"
                     inset="0rem"
                     align="flex-start"
+                    markerHeight={kLegLineHeight}
                     style={legsStyle}
                 />
             ) : hasLegs ? (
@@ -628,6 +770,7 @@ const RouteRow = ({
 export const JourneyCard = () => {
     const isOwner = useSingleCard();
     const plan = useValue(plan$);
+    const view = getCardView(useValue(times$), useValue(stepAddresses$));
     const { translate } = useLocalization();
 
     if (!plan || !isOwner) {
@@ -639,7 +782,7 @@ export const JourneyCard = () => {
     return (
         <div style={containerStyle}>
             <Panel header={text("SkylinesMaps.JourneyPlanner.CARD_TITLE", "Journey")} onClose={clearJourney}>
-                {!plan.searching && plan.modes && <ModeTabs plan={plan} text={text} />}
+                {!plan.searching && plan.modes && <ModeTabs plan={plan} view={view} text={text} />}
                 <Places from={plan.from} to={plan.to} />
                 {plan.searching ? (
                     <div style={statusStyle}>
@@ -659,6 +802,7 @@ export const JourneyCard = () => {
                             index={index}
                             selected={index === plan.selected}
                             single={plan.routes.length === 1}
+                            view={view}
                             text={text}
                         />
                     ))
@@ -789,11 +933,13 @@ const durationStyle: React.CSSProperties = {
     fontWeight: "bold",
 };
 
-const realTimeStyle: React.CSSProperties = {
-    fontSize: "12rem",
+const etaStyle: React.CSSProperties = {
+    fontSize: "13rem",
     color: "var(--textColor)",
-    opacity: 0.7,
+    opacity: 0.95,
 };
+
+const realTimeStyle: React.CSSProperties = etaStyle;
 
 const distanceStyle: React.CSSProperties = {
     fontSize: "14rem",
@@ -863,8 +1009,8 @@ const legsStyle: React.CSSProperties = {
 
 const legRowStyle: React.CSSProperties = {
     display: "flex",
-    alignItems: "center",
-    minHeight: "22rem",
+    alignItems: "flex-start",
+    minHeight: kLegLineHeight,
 };
 
 const timelineIconStyle: React.CSSProperties = {
@@ -880,7 +1026,8 @@ const timelineContentStyle: React.CSSProperties = {
 const linePillStyle: React.CSSProperties = {
     fontSize: "12rem",
     fontWeight: "bold",
-    padding: "1rem 6rem",
+    padding: "0rem 6rem",
+    lineHeight: kLegLineHeight,
     borderRadius: "4rem",
     marginRight: "6rem",
     flexShrink: 0,
@@ -889,6 +1036,7 @@ const linePillStyle: React.CSSProperties = {
 
 const legTextStyle: React.CSSProperties = {
     fontSize: "12rem",
+    lineHeight: kLegLineHeight,
     color: "var(--textColor)",
     opacity: 0.85,
     flex: 1,
@@ -896,11 +1044,30 @@ const legTextStyle: React.CSSProperties = {
     paddingRight: "2rem",
 };
 
+const legTotalStyle: React.CSSProperties = {
+    fontWeight: "bold",
+};
+
+const legPlacesStyle: React.CSSProperties = {
+    fontSize: "12rem",
+    lineHeight: kLegLineHeight,
+    color: "var(--textColor)",
+    opacity: 0.85,
+    marginTop: "1rem",
+};
+
 const legDetailStyle: React.CSSProperties = {
     fontSize: "11rem",
     color: "var(--textColor)",
     opacity: 0.6,
     marginTop: "1rem",
+};
+
+const legTotalLineStyle: React.CSSProperties = {
+    ...legDetailStyle,
+    fontSize: "12rem",
+    opacity: 0.9,
+    fontWeight: "bold",
 };
 
 const sideColumnStyle: React.CSSProperties = {
