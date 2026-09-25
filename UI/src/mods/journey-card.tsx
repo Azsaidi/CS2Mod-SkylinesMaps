@@ -85,6 +85,7 @@ interface JourneyPlan {
 }
 
 const plan$ = bindValue<JourneyPlan | null>(kGroup, "journeyPlan", null);
+const labelRects$ = bindValue<number[][]>(kGroup, "journeyLabelRects", []);
 const times$ = bindValue<number>(kGroup, "journeyTimes", 0);
 const stepAddresses$ = bindValue<boolean>(kGroup, "journeyStepAddresses", true);
 const arrivalClock$ = bindValue<number>(kGroup, "journeyArrivalClock", 0);
@@ -126,7 +127,10 @@ enum ClockFormat {
 }
 const selectRoute = bindTriggerWithArgs<[number]>(kGroup, "selectJourneyRoute");
 const clearJourney = bindTrigger(kGroup, "clearJourney");
+const swapJourney = bindTrigger(kGroup, "swapJourney");
+const focusJourneyPlace = bindTriggerWithArgs<[boolean]>(kGroup, "focusJourneyPlace");
 const selectMode = bindTriggerWithArgs<[number]>(kGroup, "selectJourneyMode");
+const hoverLabel = bindTriggerWithArgs<[number]>(kGroup, "hoverJourneyLabel");
 
 const kModes = [
     { icon: carIcon, id: "SkylinesMaps.JourneyPlanner.MODE_CAR", fallback: "Driving" },
@@ -513,17 +517,62 @@ const Timeline = ({
     );
 };
 
-const Places = ({ from, to }: { from: string; to: string }) => (
-    <Timeline
-        items={[
-            { marker: "start", content: <span style={placeLabelStyle}>{from}</span> },
-            { marker: "end", content: <span style={placeLabelStyle}>{to}</span> },
-        ]}
-        gap="12rem"
-        inset="12rem"
-        align="center"
-        style={placesStyle}
-    />
+const SwapButton = ({ text }: { text: Translate }) => {
+    const [hovered, setHovered] = useState(false);
+    const ui = getTabUi();
+
+    const button = (
+        <div
+            style={{ ...swapButtonStyle, backgroundColor: hovered ? kTabHover : "rgba(0, 0, 0, 0)" }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            onClick={() => swapJourney()}
+        >
+            {ui.TintedIcon
+                ? <ui.TintedIcon src={changeIcon} style={{ ...swapIconStyle, backgroundColor: kTabText }} />
+                : <img src={changeIcon} style={swapIconStyle} />}
+        </div>
+    );
+
+    return ui.Tooltip
+        ? <ui.Tooltip tooltip={text("SkylinesMaps.JourneyPlanner.SWAP", "Swap start and end")}>{button}</ui.Tooltip>
+        : button;
+};
+
+const PlaceLabel = ({ name, end, text }: { name: string; end: boolean; text: Translate }) => {
+    const [hovered, setHovered] = useState(false);
+    const ui = getTabUi();
+
+    const label = (
+        <div
+            style={{ ...placeButtonStyle, backgroundColor: hovered ? kTabHover : "rgba(0, 0, 0, 0)" }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            onClick={() => focusJourneyPlace(end)}
+        >
+            <span style={placeLabelStyle}>{name}</span>
+        </div>
+    );
+
+    return ui.Tooltip
+        ? <ui.Tooltip tooltip={text("SkylinesMaps.JourneyPlanner.FOCUS_PLACE", "Focus the camera on this place")}>{label}</ui.Tooltip>
+        : label;
+};
+
+const Places = ({ from, to, text }: { from: string; to: string; text: Translate }) => (
+    <div style={placesStyle}>
+        <Timeline
+            items={[
+                { marker: "start", content: <PlaceLabel name={from} end={false} text={text} /> },
+                { marker: "end", content: <PlaceLabel name={to} end={true} text={text} /> },
+            ]}
+            gap="12rem"
+            inset="0rem"
+            align="center"
+            style={placesTimelineStyle}
+        />
+        <SwapButton text={text} />
+    </div>
 );
 
 const ModeTab = ({
@@ -767,6 +816,38 @@ const RouteRow = ({
     );
 };
 
+const RouteLabelTargets = ({ plan }: { plan: JourneyPlan }) => {
+    const rects = useValue(labelRects$);
+    if (plan.searching || !rects || rects.length === 0) {
+        return null;
+    }
+
+    return (
+        <div style={labelLayerStyle}>
+            {rects.map(([index, left, top, width, height]) => (
+                <div
+                    key={index}
+                    style={{
+                        ...labelTargetStyle,
+                        left: `${left}px`,
+                        top: `${top}px`,
+                        width: `${width}px`,
+                        height: `${height}px`,
+                        cursor: index === plan.selected ? "default" : "pointer",
+                    }}
+                    onMouseEnter={() => hoverLabel(index)}
+                    onMouseLeave={() => hoverLabel(-1)}
+                    onClick={() => {
+                        if (index !== plan.selected) {
+                            selectRoute(index);
+                        }
+                    }}
+                />
+            ))}
+        </div>
+    );
+};
+
 export const JourneyCard = () => {
     const isOwner = useSingleCard();
     const plan = useValue(plan$);
@@ -780,36 +861,54 @@ export const JourneyCard = () => {
     const text: Translate = (id, fallback) => translate(id, fallback) ?? fallback;
 
     return (
-        <div style={containerStyle}>
-            <Panel header={text("SkylinesMaps.JourneyPlanner.CARD_TITLE", "Journey")} onClose={clearJourney}>
-                {!plan.searching && plan.modes && <ModeTabs plan={plan} view={view} text={text} />}
-                <Places from={plan.from} to={plan.to} />
-                {plan.searching ? (
-                    <div style={statusStyle}>
-                        {text("SkylinesMaps.JourneyPlanner.SEARCHING_ROUTES", "Finding routes...")}
-                    </div>
-                ) : plan.routes.length === 0 ? (
-                    <div style={statusStyle}>
-                        {plan.reason
-                            ? text(plan.reason, kReasonFallbacks[plan.mode] ?? kReasonFallbacks[0])
-                            : kReasonFallbacks[plan.mode] ?? kReasonFallbacks[0]}
-                    </div>
-                ) : (
-                    plan.routes.map((route, index) => (
-                        <RouteRow
-                            key={index}
-                            route={route}
-                            index={index}
-                            selected={index === plan.selected}
-                            single={plan.routes.length === 1}
-                            view={view}
-                            text={text}
-                        />
-                    ))
-                )}
-            </Panel>
-        </div>
+        <>
+            <RouteLabelTargets plan={plan} />
+            <div style={containerStyle}>
+                <Panel header={text("SkylinesMaps.JourneyPlanner.CARD_TITLE", "Journey")} onClose={clearJourney}>
+                    {!plan.searching && plan.modes && <ModeTabs plan={plan} view={view} text={text} />}
+                    <Places from={plan.from} to={plan.to} text={text} />
+                    {plan.searching ? (
+                        <div style={statusStyle}>
+                            {text("SkylinesMaps.JourneyPlanner.SEARCHING_ROUTES", "Finding routes...")}
+                        </div>
+                    ) : plan.routes.length === 0 ? (
+                        <div style={statusStyle}>
+                            {plan.reason
+                                ? text(plan.reason, kReasonFallbacks[plan.mode] ?? kReasonFallbacks[0])
+                                : kReasonFallbacks[plan.mode] ?? kReasonFallbacks[0]}
+                        </div>
+                    ) : (
+                        plan.routes.map((route, index) => (
+                            <RouteRow
+                                key={index}
+                                route={route}
+                                index={index}
+                                selected={index === plan.selected}
+                                single={plan.routes.length === 1}
+                                view={view}
+                                text={text}
+                            />
+                        ))
+                    )}
+                </Panel>
+            </div>
+        </>
     );
+};
+
+const labelLayerStyle: React.CSSProperties = {
+    position: "absolute",
+    top: "0px",
+    left: "0px",
+    width: "100%",
+    height: "100%",
+    zIndex: -1,
+    pointerEvents: "none",
+};
+
+const labelTargetStyle: React.CSSProperties = {
+    position: "absolute",
+    pointerEvents: "auto",
 };
 
 const containerStyle: React.CSSProperties = {
@@ -821,9 +920,33 @@ const containerStyle: React.CSSProperties = {
 };
 
 const placesStyle: React.CSSProperties = {
-    position: "relative",
-    padding: "8rem 12rem",
+    display: "flex",
+    alignItems: "center",
+    padding: "8rem 8rem 8rem 12rem",
     borderBottom: "1rem solid rgba(255, 255, 255, 0.15)",
+};
+
+const placesTimelineStyle: React.CSSProperties = {
+    flex: 1,
+    minWidth: 0,
+};
+
+const swapButtonStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "32rem",
+    height: "32rem",
+    marginLeft: "8rem",
+    borderRadius: "6rem",
+    flexShrink: 0,
+    cursor: "pointer",
+};
+
+const swapIconStyle: React.CSSProperties = {
+    width: "22rem",
+    height: "22rem",
+    transform: "rotate(90deg)",
 };
 
 const placeRowStyle: React.CSSProperties = {
@@ -895,6 +1018,15 @@ const placeLabelStyle: React.CSSProperties = {
     color: "var(--textColor)",
     overflow: "hidden",
     flex: 1,
+};
+
+const placeButtonStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    padding: "2rem 6rem",
+    marginLeft: "-6rem",
+    borderRadius: "4rem",
+    cursor: "pointer",
 };
 
 const statusStyle: React.CSSProperties = {

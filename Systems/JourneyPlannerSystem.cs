@@ -126,6 +126,27 @@ namespace SkylinesMaps.Systems
             public string m_Via = string.Empty;
         }
 
+        private sealed class RouteAnchor
+        {
+            public RouteOption m_Option;
+            public readonly List<float3> m_Positions = new List<float3>();
+        }
+
+        public struct RouteCallout
+        {
+            public int m_Index;
+            public IReadOnlyList<float3> m_Positions;
+            public float m_Duration;
+            public float m_Distance;
+            public RouteTag m_Tags;
+            public int m_Cost;
+            public bool m_HasFare;
+        }
+
+        private static readonly float[] kAnchorFractions = { 0.5f, 0.3f, 0.7f, 0.15f, 0.85f };
+
+        private const float kMinAnchorRun = 30f;
+
         private const float kRefreshInterval = 2f;
 
         private const float kFailureDuration = 4f;
@@ -215,7 +236,9 @@ namespace SkylinesMaps.Systems
 
         private static readonly Color32 kFallbackJammedColor = new Color32(179, 20, 18, 255);
 
-        private static readonly Color32 kAlternateColor = new Color32(140, 146, 153, 255);
+        private static readonly Color32 kAlternateColor = new Color32(112, 118, 126, 255);
+
+        private static readonly Color32 kAlternateOutlineColor = new Color32(26, 115, 232, 255);
 
         private static readonly RouteKind[] kRouteKinds =
         {
@@ -287,9 +310,13 @@ namespace SkylinesMaps.Systems
         private bool m_HasPendingRouteSelection;
         private int m_PendingRouteSelection;
         private bool m_HasPendingClear;
+        private bool m_HasPendingSwap;
+        private int m_PreferredMode = -1;
 
         private readonly List<Entity> m_Routes = new List<Entity>();
         private readonly HashSet<Entity> m_AlternateRoutes = new HashSet<Entity>();
+        private readonly HashSet<Entity> m_AlternateOutlines = new HashSet<Entity>();
+        private readonly List<RouteAnchor> m_Anchors = new List<RouteAnchor>();
         private readonly List<Entity> m_Segments = new List<Entity>();
         private readonly List<Entity> m_Holders = new List<Entity>();
         private readonly List<Entity> m_PendingDeletes = new List<Entity>();
@@ -312,11 +339,17 @@ namespace SkylinesMaps.Systems
 
         public int planVersion { get; private set; }
 
+        public int selectedRoute => m_Selected;
+
+        public TravelMode travelMode => m_Mode;
+
         public int displayVersion { get; private set; }
 
         public IReadOnlyList<Entity> routeEntities => m_Routes;
 
         public bool IsAlternateRoute(Entity route) => m_AlternateRoutes.Contains(route);
+
+        public bool IsAlternateOutline(Entity route) => m_AlternateOutlines.Contains(route);
 
         protected override void OnCreate()
         {
@@ -381,6 +414,8 @@ namespace SkylinesMaps.Systems
             m_Segments.Clear();
             m_Holders.Clear();
             m_AlternateRoutes.Clear();
+            m_AlternateOutlines.Clear();
+            m_Anchors.Clear();
             m_PendingDeletes.Clear();
             m_Bands.Clear();
             foreach (List<RouteOption> routes in m_ModeRoutes)
@@ -429,6 +464,8 @@ namespace SkylinesMaps.Systems
             m_HasPendingAction = false;
             m_HasPendingRouteSelection = false;
             m_HasPendingClear = false;
+            m_HasPendingSwap = false;
+            m_PreferredMode = -1;
             m_FailureTimer = 0f;
             state = JourneyState.Idle;
             BumpPlan();
@@ -529,6 +566,11 @@ namespace SkylinesMaps.Systems
         public void QueueClear()
         {
             m_HasPendingClear = true;
+        }
+
+        public void QueueSwap()
+        {
+            m_HasPendingSwap = true;
         }
 
         public void QueueModeSelection(int mode)
@@ -705,6 +747,7 @@ namespace SkylinesMaps.Systems
                 m_HasPendingAction = false;
                 m_HasPendingRouteSelection = false;
                 m_HasPendingClear = false;
+                m_HasPendingSwap = false;
                 m_FailureTimer = 0f;
 
                 if (state != JourneyState.Idle)
@@ -750,7 +793,32 @@ namespace SkylinesMaps.Systems
                 m_HasPendingAction = false;
                 m_HasPendingRouteSelection = false;
                 m_HasPendingModeSelection = false;
+                m_HasPendingSwap = false;
                 ClearJourney();
+            }
+
+            if (m_HasPendingSwap)
+            {
+                m_HasPendingSwap = false;
+                if ((state == JourneyState.Pathfinding || state == JourneyState.Showing)
+                    && EntityManager.Exists(m_Origin)
+                    && EntityManager.Exists(m_Destination))
+                {
+                    Entity origin = m_Origin;
+                    Entity destination = m_Destination;
+                    int originIndex = m_OriginIndex;
+                    int destinationIndex = m_DestinationIndex;
+                    int mode = (int)m_Mode;
+
+                    ClearJourney();
+                    m_FailureTimer = 0f;
+                    m_Origin = destination;
+                    m_OriginIndex = destinationIndex;
+                    m_Destination = origin;
+                    m_DestinationIndex = originIndex;
+                    m_PreferredMode = mode;
+                    RequestPaths();
+                }
             }
 
             if (m_HasPendingModeSelection)
@@ -1669,6 +1737,14 @@ namespace SkylinesMaps.Systems
 
         private bool SelectFirstAvailableMode()
         {
+            int preferred = m_PreferredMode;
+            m_PreferredMode = -1;
+            if (preferred >= 0 && preferred < kModeCount && m_ModeRoutes[preferred].Count > 0)
+            {
+                m_Mode = (TravelMode)preferred;
+                return true;
+            }
+
             for (int mode = 0; mode < kModeCount; mode++)
             {
                 if (m_ModeRoutes[mode].Count > 0)
@@ -2503,6 +2579,7 @@ namespace SkylinesMaps.Systems
                     BuildDisplay(path);
                     AddAccessDisplay(false);
                     AddAlternateDisplay(option, path);
+                    BuildAnchors(option);
                 }
             }
             else if (changed)
@@ -2516,6 +2593,7 @@ namespace SkylinesMaps.Systems
                 }
 
                 AddAlternateDisplay(option, path);
+                BuildAnchors(option);
             }
 
             m_DisplayedSelection = m_Selected;
@@ -2852,7 +2930,180 @@ namespace SkylinesMaps.Systems
         private void AddAlternateSegment(RouteConfigurationData config, List<PathElement> lanes, bool walking)
         {
             Entity prefab = walking ? config.m_HumanPathVisualization : config.m_CarPathVisualization;
+            AddDisplaySegment(prefab, kAlternateOutlineColor, lanes, walking, false, true);
             AddDisplaySegment(prefab, kAlternateColor, lanes, walking, false);
+        }
+
+        private void BuildAnchors(RouteOption selected)
+        {
+            m_Anchors.Clear();
+
+            List<RouteOption> routes = CurrentRoutes;
+            List<List<PathElement>> lanes = new List<List<PathElement>>(routes.Count);
+            List<List<Entity>> keys = new List<List<Entity>>(routes.Count);
+            Dictionary<Entity, int> counts = new Dictionary<Entity, int>();
+
+            foreach (RouteOption option in routes)
+            {
+                List<PathElement> path = new List<PathElement>();
+                List<Entity> pathKeys = new List<Entity>();
+                if (EntityManager.Exists(option.m_Request))
+                {
+                    NativeArray<PathElement> buffer = EntityManager.GetBuffer<PathElement>(option.m_Request).ToNativeArray(Allocator.Temp);
+                    foreach (PathElement element in ExpandPath(buffer))
+                    {
+                        if (EntityManager.HasComponent<Game.Net.Curve>(element.m_Target) && !IsParkingTarget(element.m_Target))
+                        {
+                            path.Add(element);
+                            pathKeys.Add(GetShareKey(element.m_Target));
+                        }
+                    }
+
+                    buffer.Dispose();
+                }
+
+                foreach (Entity key in new HashSet<Entity>(pathKeys))
+                {
+                    counts[key] = counts.TryGetValue(key, out int count) ? count + 1 : 1;
+                }
+
+                lanes.Add(path);
+                keys.Add(pathKeys);
+            }
+
+            int selectedIndex = routes.IndexOf(selected);
+            HashSet<Entity> selectedKeys = selectedIndex >= 0 ? new HashSet<Entity>(keys[selectedIndex]) : new HashSet<Entity>();
+
+            for (int i = 0; i < routes.Count; i++)
+            {
+                List<PathElement> path = lanes[i];
+                List<Entity> pathKeys = keys[i];
+                if (path.Count == 0)
+                {
+                    continue;
+                }
+
+                bool isSelected = i == selectedIndex;
+                RouteAnchor anchor = new RouteAnchor { m_Option = routes[i] };
+                if (TryGetRunPoints(path, pathKeys, key => counts[key] == 1, kMinAnchorRun, anchor.m_Positions)
+                    || (!isSelected && TryGetRunPoints(path, pathKeys, key => !selectedKeys.Contains(key), 0f, anchor.m_Positions))
+                    || TryGetRunPoints(path, pathKeys, key => true, 0f, anchor.m_Positions))
+                {
+                    m_Anchors.Add(anchor);
+                }
+            }
+        }
+
+        private bool TryGetRunPoints(List<PathElement> path, List<Entity> keys, Func<Entity, bool> include, float minLength, List<float3> points)
+        {
+            points.Clear();
+
+            float bestLength = 0f;
+            int bestStart = -1;
+            int bestEnd = -1;
+            int start = -1;
+            float length = 0f;
+
+            for (int i = 0; i <= path.Count; i++)
+            {
+                if (i < path.Count && include(keys[i]))
+                {
+                    if (start < 0)
+                    {
+                        start = i;
+                        length = 0f;
+                    }
+
+                    length += GetLaneLength(path[i]);
+                    continue;
+                }
+
+                if (start >= 0 && length > bestLength)
+                {
+                    bestLength = length;
+                    bestStart = start;
+                    bestEnd = i;
+                }
+
+                start = -1;
+            }
+
+            if (bestStart < 0 || bestLength < minLength)
+            {
+                return false;
+            }
+
+            foreach (float fraction in kAnchorFractions)
+            {
+                float remaining = bestLength * fraction;
+                for (int i = bestStart; i < bestEnd; i++)
+                {
+                    float laneLength = GetLaneLength(path[i]);
+                    if (remaining <= laneLength || i == bestEnd - 1)
+                    {
+                        float2 delta = path[i].m_TargetDelta;
+                        float t = laneLength > 0f ? math.saturate(remaining / laneLength) : 0.5f;
+                        Bezier4x3 curve = EntityManager.GetComponentData<Game.Net.Curve>(path[i].m_Target).m_Bezier;
+                        points.Add(MathUtils.Position(curve, math.lerp(delta.x, delta.y, t)));
+                        break;
+                    }
+
+                    remaining -= laneLength;
+                }
+            }
+
+            return points.Count > 0;
+        }
+
+        private float GetLaneLength(PathElement element)
+        {
+            Game.Net.Curve curve = EntityManager.GetComponentData<Game.Net.Curve>(element.m_Target);
+            return math.abs(element.m_TargetDelta.y - element.m_TargetDelta.x) * curve.m_Length;
+        }
+
+        public void GetCallouts(List<RouteCallout> output)
+        {
+            output.Clear();
+            List<RouteOption> routes = CurrentRoutes;
+            if (state != JourneyState.Showing || routes.Count == 0)
+            {
+                return;
+            }
+
+            foreach (RouteAnchor anchor in m_Anchors)
+            {
+                int index = routes.IndexOf(anchor.m_Option);
+                if (index < 0)
+                {
+                    continue;
+                }
+
+                RouteOption option = anchor.m_Option;
+                output.Add(new RouteCallout
+                {
+                    m_Index = index,
+                    m_Positions = anchor.m_Positions,
+                    m_Duration = option.m_Duration,
+                    m_Distance = option.m_Distance,
+                    m_Tags = option.m_Tags,
+                    m_Cost = GetCost(option),
+                    m_HasFare = option.m_Mode == TravelMode.Transit && option.m_Legs.Count > 0,
+                });
+            }
+        }
+
+        public static float ToGameSeconds(float seconds)
+        {
+            return seconds * kGameSecondsPerSimulationSecond;
+        }
+
+        public bool TryGetPlace(bool end, out Entity place, out int index)
+        {
+            place = end ? m_Destination : m_Origin;
+            index = end ? m_DestinationIndex : m_OriginIndex;
+            return (state == JourneyState.Pathfinding || state == JourneyState.Showing)
+                && place != Entity.Null
+                && EntityManager.Exists(place);
         }
 
         private bool IsWalkingLane(Entity lane)
@@ -2909,7 +3160,7 @@ namespace SkylinesMaps.Systems
             }
         }
 
-        private void AddDisplaySegment(Entity prefab, Color32 colour, List<PathElement> elements, bool walking, bool highlighted = true)
+        private void AddDisplaySegment(Entity prefab, Color32 colour, List<PathElement> elements, bool walking, bool highlighted = true, bool outline = false)
         {
             if (prefab == Entity.Null || !EntityManager.HasComponent<RouteData>(prefab))
             {
@@ -2931,7 +3182,7 @@ namespace SkylinesMaps.Systems
             }
 
             RouteData routeData = EntityManager.GetComponentData<RouteData>(prefab);
-            Entity route = CreateRoute(prefab, routeData, colour, highlighted);
+            Entity route = CreateRoute(prefab, routeData, colour, highlighted, outline);
 
             Entity holder;
             if (walking)
@@ -2969,16 +3220,21 @@ namespace SkylinesMaps.Systems
             m_Segments.Add(segmentEntity);
         }
 
-        private Entity CreateRoute(Entity prefab, RouteData routeData, Color32 colour, bool highlighted = true)
+        private Entity CreateRoute(Entity prefab, RouteData routeData, Color32 colour, bool highlighted = true, bool outline = false)
         {
             Entity route = EntityManager.CreateEntity(routeData.m_RouteArchetype);
             EntityManager.SetComponentData(route, new PrefabRef(prefab));
             EntityManager.SetComponentData(route, new Game.Routes.Color(colour));
-            if (highlighted)
+            if (outline)
+            {
+                m_AlternateOutlines.Add(route);
+            }
+            else
             {
                 EntityManager.AddComponent<Highlighted>(route);
             }
-            else
+
+            if (!highlighted)
             {
                 m_AlternateRoutes.Add(route);
             }
@@ -3117,6 +3373,7 @@ namespace SkylinesMaps.Systems
             m_DestinationIndex = -1;
             m_FromName = string.Empty;
             m_ToName = string.Empty;
+            m_PreferredMode = -1;
             state = JourneyState.Idle;
             BumpPlan();
             ResumeTrafficRoutes();
@@ -3145,6 +3402,8 @@ namespace SkylinesMaps.Systems
 
             m_Routes.Clear();
             m_AlternateRoutes.Clear();
+            m_AlternateOutlines.Clear();
+            m_Anchors.Clear();
             m_Segments.Clear();
             m_Holders.Clear();
             displayVersion++;

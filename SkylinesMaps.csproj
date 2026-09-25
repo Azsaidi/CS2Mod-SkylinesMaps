@@ -6,7 +6,7 @@
 		<!--The file where mod information which is required for publishing mod on PDX mods are stored-->
 		<PublishConfigurationPath>Properties\PublishConfiguration.xml</PublishConfigurationPath>
 		<Title>Skylines Maps</Title>
-		<Version>1.2.0</Version>
+		<Version>1.3.0</Version>
 		<Description>A live traffic infoview that resembles real life navigation apps and a journey length mode</Description>
 		<Copyright>Copyright © 2026</Copyright>
 		<TreatWarningsAsErrors>True</TreatWarningsAsErrors>
@@ -72,6 +72,28 @@
 		<Reference Include="Unity.Mathematics">
 			<Private>false</Private>
 		</Reference>
+		<Reference Include="Unity.TextMeshPro">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Unity.RenderPipelines.Core.Runtime">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="Unity.RenderPipelines.HighDefinition.Runtime">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="UnityEngine.ImageConversionModule">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="UnityEngine.UI">
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="UnityEngine.TextCoreFontEngineModule">
+			<Private>false</Private>
+		</Reference>
+	</ItemGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Include="Resources\journey-*.png" LogicalName="SkylinesMaps.Resources.%(Filename)%(Extension)" />
 	</ItemGroup>
 
 	<ItemGroup>

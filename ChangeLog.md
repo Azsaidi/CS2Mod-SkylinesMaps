@@ -1,5 +1,2 @@
-- Code refactoring and optimisation
-- Improved resource use and performance
-- Added option to change what time format (Ingame, Real life or Both) is shown in journey mode
-- Many UI improvements
-- Added ETA display in journey mode
+- Added alternative route tags
+- Made alternative routes more visually distinct

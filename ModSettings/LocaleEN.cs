@@ -126,6 +126,8 @@ namespace SkylinesMaps
                 { "SkylinesMaps.JourneyPlanner.KIND_FEWER_CHANGES", "Fewer changes" },
                 { "SkylinesMaps.JourneyPlanner.KIND_LESS_WALKING", "Less walking" },
                 { "SkylinesMaps.JourneyPlanner.CHANGE", "Change" },
+                { "SkylinesMaps.JourneyPlanner.SWAP", "Swap start and end" },
+                { "SkylinesMaps.JourneyPlanner.FOCUS_PLACE", "Focus the camera on this place" },
                 { "SkylinesMaps.JourneyPlanner.AT", "at" },
                 { "SkylinesMaps.JourneyPlanner.NO_ROUTE", "No route" },
                 { "SkylinesMaps.JourneyPlanner.REASON_CAR", "No driving route was found between these places." },

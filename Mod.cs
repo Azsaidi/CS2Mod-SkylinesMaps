@@ -53,6 +53,7 @@ namespace SkylinesMaps
             updateSystem.UpdateAt<TrafficInfoviewToggleSystem>(SystemUpdatePhase.UIUpdate);
             updateSystem.UpdateAt<JourneyPlannerSystem>(SystemUpdatePhase.Modification2);
             updateSystem.UpdateAt<JourneyPlannerUISystem>(SystemUpdatePhase.UIUpdate);
+            updateSystem.UpdateAt<JourneyLabelSystem>(SystemUpdatePhase.UIUpdate);
             updateSystem.UpdateBefore<JourneyMarkerSystem, Game.Rendering.OverlayRenderSystem>(SystemUpdatePhase.Rendering);
             updateSystem.UpdateAt<JourneyTooltipSystem>(SystemUpdatePhase.UITooltip);
         }
